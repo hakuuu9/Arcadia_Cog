@@ -5,8 +5,6 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 from config import MONGO_URL # Assuming config.py is in the same directory
 
-# No default thumbnail URL needed if we're not using it
-
 class AFK(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -33,54 +31,6 @@ class AFK(commands.Cog):
         
         return ", ".join(parts) # Join with comma and space
 
-    # Helper function to create AFK status embed
-    def create_afk_status_embed(self, user: discord.User, reason: str = None, time: datetime = None, is_set: bool = True):
-        embed = discord.Embed(
-            title=f"{'😴 AFK Status Set' if is_set else '👋 Welcome Back!'}",
-            color=discord.Color.green() if is_set else discord.Color.blue()
-        )
-        embed.set_author(name=user.display_name, icon_url=user.avatar.url if user.avatar else user.default_avatar.url)
-        # Removed: embed.set_thumbnail(url=DEFAULT_THUMBNAIL_URL)
-
-        if is_set:
-            description = f"You are now AFK"
-            if reason:
-                description += f" with reason: **{reason}**"
-            description += f". I'll let people know when they mention you."
-            embed.description = description
-            
-            # Display time since AFK for the setter
-            if time:
-                embed.add_field(name="AFK Since", value=f"<t:{int(time.timestamp())}:R>", inline=False)
-        else:
-            description = f"Welcome back, {user.mention}! Your AFK status has been cleared."
-            embed.description = description
-            if time:
-                duration = datetime.utcnow() - time
-                embed.add_field(name="You were AFK for", value=self.format_duration(duration), inline=False)
-        
-        embed.set_footer(text="AFK System")
-        return embed
-
-    # Helper function to create AFK mention embed
-    def create_afk_mention_embed(self, afk_member: discord.Member, reason: str, afk_time: datetime):
-        duration = datetime.utcnow() - afk_time
-        
-        embed = discord.Embed(
-            title="🚫 User is AFK!",
-            description=f"{afk_member.mention} is currently AFK.",
-            color=discord.Color.red()
-        )
-        embed.set_author(name=afk_member.display_name, icon_url=afk_member.avatar.url if afk_member.avatar else afk_member.default_avatar.url)
-        # Removed: embed.set_thumbnail(url=DEFAULT_THUMBNAIL_URL)
-        
-        if reason:
-            embed.add_field(name="Reason", value=reason, inline=False)
-        
-        embed.add_field(name="AFK For", value=self.format_duration(duration), inline=False)
-        embed.set_footer(text="AFK System")
-        return embed
-
     # --- Command Logic (Shared for Prefix and Slash) ---
     async def process_afk_set(self, user: discord.Member, reason: str, send_response_func):
         user_id = str(user.id)
@@ -92,8 +42,12 @@ class AFK(commands.Cog):
             upsert=True
         )
 
-        embed = self.create_afk_status_embed(user, reason, current_time, is_set=True)
-        await send_response_func(embed=embed)
+        afk_message = f"You are now **AFK**"
+        if reason:
+            afk_message += f": **{reason}**"
+        afk_message += f". I'll let people know when they mention you."
+        
+        await send_response_func(f"✅ {afk_message}")
         
         # Optionally, change nickname to indicate AFK
         try:
@@ -114,7 +68,8 @@ class AFK(commands.Cog):
     @app_commands.command(name="afk", description="Set yourself as AFK with an optional reason.")
     @app_commands.describe(reason="The reason for being AFK (optional).")
     async def afk_slash(self, interaction: discord.Interaction, reason: str = None):
-        await interaction.response.defer(ephemeral=False) # Defer the response first
+        # Defer the response first (ephemeral=False means visible to everyone)
+        await interaction.response.defer(ephemeral=False) 
         await self.process_afk_set(
             interaction.user,
             reason,
@@ -163,10 +118,10 @@ class AFK(commands.Cog):
             except Exception as e:
                 print(f"An error occurred while clearing AFK nickname: {e}")
 
-            # Send welcome back embed
+            # Send welcome back message
             afk_time = user_data["afk"]["time"]
-            embed = self.create_afk_status_embed(message.author, time=afk_time, is_set=False)
-            await message.channel.send(embed=embed)
+            duration_str = self.format_duration(datetime.utcnow() - afk_time)
+            await message.channel.send(f"👋 Welcome back, {message.author.mention}! You were AFK for **{duration_str}**.")
             
             return # Don't process mentions if the author just came back from AFK
 
@@ -187,8 +142,13 @@ class AFK(commands.Cog):
                 reason = afk_data["afk"]["reason"]
                 afk_time = afk_data["afk"]["time"]
                 
-                embed = self.create_afk_mention_embed(member, reason, afk_time)
-                await message.channel.send(embed=embed)
+                duration_str = self.format_duration(datetime.utcnow() - afk_time)
+                response = f"🚫 {member.mention} is currently **AFK**"
+                if reason:
+                    response += f" with reason: **{reason}**"
+                response += f" (AFK for **{duration_str}**)."
+                
+                await message.channel.send(response)
                 # Only send one AFK response per message for mentioned users.
                 # If you want to notify for ALL mentioned AFK users, remove this return.
                 return 
