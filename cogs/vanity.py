@@ -1,3 +1,5 @@
+# cogs/vanity.py
+
 import discord
 from discord.ext import commands
 from config import VANITY_LINK, ROLE_ID, VANITY_LOG_CHANNEL_ID, VANITY_IMAGE_URL
@@ -10,19 +12,28 @@ class VanityRole(commands.Cog):
     async def on_presence_update(self, before, after):
         member = after
         try:
+            # Get the custom status text if it exists
             status = None
             for activity in after.activities:
                 if activity.type == discord.ActivityType.custom:
                     status = activity.state
                     break
 
-            has_role = any(role.id == ROLE_ID for role in member.roles)
+            # Get the role object from the guild
             role = member.guild.get_role(ROLE_ID)
-            if not role:
-                print(f"[VanityRole] Role ID {ROLE_ID} not found in guild {member.guild.name}")
+            if role is None:
+                print(f"[VanityRole] Role with ID {ROLE_ID} not found in guild {member.guild.name}.")
                 return
 
-            # Role granting
+            has_role = role in member.roles
+
+            # Get the log channel
+            channel = self.bot.get_channel(VANITY_LOG_CHANNEL_ID)
+            if channel is None:
+                print(f"[VanityRole] Log channel with ID {VANITY_LOG_CHANNEL_ID} not found.")
+                return
+
+            # Assign role if status contains vanity link and member does not have role
             if status and VANITY_LINK in status and not has_role:
                 await member.add_roles(role)
 
@@ -41,11 +52,9 @@ class VanityRole(commands.Cog):
                 embed.set_image(url=VANITY_IMAGE_URL)
                 embed.set_footer(text=f"Status verified for {member.name}.")
 
-                channel = self.bot.get_channel(VANITY_LOG_CHANNEL_ID)
-                if channel:
-                    await channel.send(embed=embed)
+                await channel.send(embed=embed)
 
-            # Role removal
+            # Remove role if status does not contain vanity link and member has role
             elif (not status or VANITY_LINK not in status) and has_role:
                 await member.remove_roles(role)
 
@@ -59,9 +68,7 @@ class VanityRole(commands.Cog):
                 )
                 embed.set_footer(text=f"Status updated for {member.name}.")
 
-                channel = self.bot.get_channel(VANITY_LOG_CHANNEL_ID)
-                if channel:
-                    await channel.send(embed=embed)
+                await channel.send(embed=embed)
 
         except Exception as e:
             print(f"[Error - Vanity Role Handler]: {e}")
