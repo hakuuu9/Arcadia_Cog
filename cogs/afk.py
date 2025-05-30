@@ -111,12 +111,11 @@ class AFK(commands.Cog):
             if afk_data and "afk" in afk_data:
                 reason = afk_data["afk"]["reason"]
                 afk_time = afk_data["afk"]["time"]
-                duration = self.format_duration(datetime.utcnow() - afk_time)
+    
 
                 response = f"{member.mention} is currently **AFK!**\n"
                 if reason:
                     response += f"With reason: **{reason}**\n"
-                response += f"for **{duration}**\n"
                 response += f"Since: <t:{int(afk_time.timestamp())}:R>"
 
                 await message.channel.send(response)
