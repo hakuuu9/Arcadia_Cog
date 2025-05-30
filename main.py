@@ -13,7 +13,7 @@ intents.presences = True
 intents.members = True
 
 # --- 2. Initialize the Bot ---
-bot = commands.Bot(command_prefix="$ ", intents=intents)
+bot = commands.Bot(command_prefix="$", intents=intents)
 
 # --- 3. Bot Events ---
 
