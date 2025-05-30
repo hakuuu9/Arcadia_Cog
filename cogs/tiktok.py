@@ -9,64 +9,61 @@ class TikTok(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="tiktok", description="Download a TikTok video without watermark!")
+    @app_commands.command(name="tiktok", description="Download a TikTok video and send it as a file!")
     @app_commands.describe(url="The URL of the TikTok video.")
     async def tiktok(self, interaction: discord.Interaction, url: str):
-        await interaction.response.defer(thinking=True, ephemeral=False)
-        print(f"[TikTok] Command invoked with URL: {url}")
+        await interaction.response.defer(thinking=True)
 
+        # Validate URL
         if not re.match(r"https?://(www\.)?(tiktok\.com|vm\.tiktok\.com|m\.tiktok\.com|vt\.tiktok\.com)/", url):
-            await interaction.followup.send("❌ That doesn't look like a valid TikTok URL. Make sure it's from tiktok.com or a common shortener like vt.tiktok.com.", ephemeral=True)
+            await interaction.followup.send("❌ That doesn't look like a valid TikTok URL.", ephemeral=True)
             return
 
         try:
             async with aiohttp.ClientSession() as session:
                 api_url = f"https://tikwm.com/api/?url={url}"
-                print(f"[TikTok] Fetching API data from {api_url}")
                 async with session.get(api_url) as resp:
                     if resp.status != 200:
-                        await interaction.followup.send(f"❌ Failed to fetch data from TikTok API (Status: {resp.status}).", ephemeral=True)
+                        await interaction.followup.send(f"❌ TikTok API error: HTTP {resp.status}", ephemeral=True)
                         return
                     data = await resp.json()
-                    print(f"[TikTok] API response: {data}")
 
-                if data.get("code") != 0:
-                    error_msg = data.get("msg", "Unknown error from API.")
-                    await interaction.followup.send(f"❌ TikTok API returned an error: {error_msg}. (This often happens with private videos or unusual TikTok links).", ephemeral=True)
-                    return
+            if data.get("code") != 0:
+                await interaction.followup.send(f"❌ API error: {data.get('msg', 'Unknown error')}", ephemeral=True)
+                return
 
-                video_data = data.get("data")
-                if not video_data:
-                    await interaction.followup.send("❌ No video data found in the TikTok API response. (Could be private, unavailable, or an issue with the API).", ephemeral=True)
-                    return
+            video_data = data.get("data")
+            if not video_data:
+                await interaction.followup.send("❌ No video data found.", ephemeral=True)
+                return
 
-                video_url = video_data.get("nwm_play") or video_data.get("play")
-                title = video_data.get("title", "TikTok Video")
+            video_url = video_data.get("nwm_play") or video_data.get("play")
+            title = video_data.get("title", "TikTok Video")
 
-                if not video_url:
-                    await interaction.followup.send("❌ Could not find a downloadable video URL.", ephemeral=True)
-                    return
+            if not video_url:
+                await interaction.followup.send("❌ Could not find a video URL.", ephemeral=True)
+                return
 
-                print(f"[TikTok] Downloading video from {video_url}")
+            async with aiohttp.ClientSession() as session:
                 async with session.get(video_url) as video_resp:
                     if video_resp.status != 200:
-                        await interaction.followup.send(f"❌ Failed to download video (Status: {video_resp.status}).", ephemeral=True)
+                        await interaction.followup.send(f"❌ Failed to download video (HTTP {video_resp.status}).", ephemeral=True)
                         return
-                    video_bytes = io.BytesIO(await video_resp.read())
+                    video_bytes = await video_resp.read()
 
-            print("[TikTok] Sending video file")
-            await interaction.followup.send(
-                content=f"**{title}**",
-                file=discord.File(video_bytes, filename="tiktok_video.mp4")
-            )
-            print("[TikTok] Video sent successfully")
+            # Check size (Discord max default 8MB)
+            max_size = 8 * 1024 * 1024
+            if len(video_bytes) > max_size:
+                await interaction.followup.send("❌ Video is too large to send (over 8MB).", ephemeral=True)
+                return
 
-        except aiohttp.ClientError as e:
-            await interaction.followup.send(f"❌ A network error occurred: {e}", ephemeral=True)
-            print(f"[TikTok] Network error: {e}")
+            file = discord.File(io.BytesIO(video_bytes), filename="tiktok_video.mp4")
+
+            await interaction.followup.send(content=f"**{title}**", file=file)
+
         except Exception as e:
-            await interaction.followup.send(f"❌ An unexpected error occurred: {e}", ephemeral=True)
-            print(f"[TikTok] Unexpected error: {e}")
+            await interaction.followup.send(f"❌ Unexpected error: {e}", ephemeral=True)
+            print(f"Error in TikTok command: {e}")
 
 async def setup(bot):
     await bot.add_cog(TikTok(bot))
