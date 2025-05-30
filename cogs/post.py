@@ -6,11 +6,13 @@ class Post(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def is_staff(interaction: discord.Interaction):
-        # Check if the user has manage_messages permission
+    def is_staff(self, interaction: discord.Interaction) -> bool:
         return interaction.user.guild_permissions.manage_messages
 
-    @app_commands.command(name="post", description="Post a message to a channel with optional embed, image, and color.")
+    @app_commands.command(
+        name="post",
+        description="Post a message to a channel with optional embed, image, and color."
+    )
     @app_commands.describe(
         channel="Channel to send the message",
         message="The message content (supports server GIFs/emojis)",
@@ -27,7 +29,6 @@ class Post(commands.Cog):
         image_url: str = None,
         embed_color: str = "#2f3136",
     ):
-        # Staff check
         if not self.is_staff(interaction):
             return await interaction.response.send_message(
                 "❌ You do not have permission to use this command.", ephemeral=True
@@ -37,7 +38,6 @@ class Post(commands.Cog):
 
         try:
             if embed:
-                # Convert hex color string to discord.Color
                 try:
                     color = discord.Color.from_str(embed_color)
                 except ValueError:
@@ -50,16 +50,17 @@ class Post(commands.Cog):
             else:
                 content = message
                 if image_url:
-                    content += f"\n{image_url}"  # Include image URL inline
+                    content += f"\n{image_url}"
                 await channel.send(content=content)
 
-            await interaction.followup.send(f"✅ Message sent to {channel.mention}.", ephemeral=True)
+            await interaction.followup.send(
+                f"✅ Message sent to {channel.mention}.", ephemeral=True
+            )
 
         except Exception as e:
-            await interaction.followup.send(f"❌ Failed to send message: `{e}`", ephemeral=True)
-
-    def is_staff(self, interaction: discord.Interaction) -> bool:
-        return interaction.user.guild_permissions.manage_messages
+            await interaction.followup.send(
+                f"❌ Failed to send message: `{e}`", ephemeral=True
+            )
 
 async def setup(bot):
     await bot.add_cog(Post(bot))
