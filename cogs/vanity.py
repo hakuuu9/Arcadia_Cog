@@ -1,5 +1,3 @@
-# cogs/vanity.py
-
 import discord
 from discord.ext import commands
 from config import VANITY_LINK, ROLE_ID, VANITY_LOG_CHANNEL_ID, VANITY_IMAGE_URL
@@ -19,10 +17,14 @@ class VanityRole(commands.Cog):
                     break
 
             has_role = any(role.id == ROLE_ID for role in member.roles)
+            role = member.guild.get_role(ROLE_ID)
+            if not role:
+                print(f"[VanityRole] Role ID {ROLE_ID} not found in guild {member.guild.name}")
+                return
 
             # Role granting
             if status and VANITY_LINK in status and not has_role:
-                await member.add_roles(discord.Object(id=ROLE_ID))
+                await member.add_roles(role)
 
                 embed = discord.Embed(
                     title="Vanity Role Granted",
@@ -43,8 +45,9 @@ class VanityRole(commands.Cog):
                 if channel:
                     await channel.send(embed=embed)
 
+            # Role removal
             elif (not status or VANITY_LINK not in status) and has_role:
-                await member.remove_roles(discord.Object(id=ROLE_ID))
+                await member.remove_roles(role)
 
                 embed = discord.Embed(
                     title="Vanity Role Removed",
