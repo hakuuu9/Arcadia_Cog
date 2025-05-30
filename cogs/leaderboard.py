@@ -8,54 +8,50 @@ class Leaderboard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.client = MongoClient(MONGO_URL)
-        self.db = self.client.hxhbot.users  # Your MongoDB collection
+        self.db = self.client.hxhbot.users
 
     async def generate_leaderboard_embed(self, guild: discord.Guild):
+        # Fetch top 20 users sorted by balance
         top_users = list(self.db.find({"balance": {"$exists": True}}).sort("balance", -1).limit(20))
-
+        
         if not top_users:
             return None
 
-        emoji = "<:11564whitecrown:1378027038614491226>"
-
+        # You can replace this emoji with your actual bot's emoji
+        emoji = "<a:your_custom_emoji:123456789012345678>"  # Replace with actual animated or static emoji ID
         embed = discord.Embed(
             title=f"{emoji}  HALL OF FAME  {emoji}",
+            description="",
             color=discord.Color.black()
         )
 
-        lines = []
-        for idx, user in enumerate(top_users, start=1):
+        for index, user in enumerate(top_users, start=1):
             user_id = int(user["_id"])
             member = guild.get_member(user_id)
-            if member:
-                name = f"{member.name}#{member.discriminator}"
-            else:
-                name = f"<@{user_id}>"
+            name = member.display_name if member else f"<@{user_id}>"
             balance = user.get("balance", 0)
-            lines.append(f"**{idx}.** {name} — ₱{balance:,}")
-
-        embed.description = "\n".join(lines)
+            embed.description += f"**{index}.** {name} — ₱{balance:,}\n"
 
         return embed
-
-    @commands.command(name="leaderboard")
-    async def leaderboard_command(self, ctx):
-        embed = await self.generate_leaderboard_embed(ctx.guild)
-        if embed is None:
-            await ctx.send("❌ There are no rich people yet!")
-        else:
-            await ctx.send(embed=embed)
 
     @app_commands.command(name="leaderboard", description="View the top 20 richest members")
     async def leaderboard_slash(self, interaction: discord.Interaction):
         await interaction.response.defer()
         embed = await self.generate_leaderboard_embed(interaction.guild)
-        if embed is None:
-            await interaction.followup.send("❌ There are no rich people yet!")
-        else:
+        if embed:
             await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send("❌ There are no rich people yet!")
 
-    async def cog_unload(self):
+    @commands.command(name="leaderboard")
+    async def leaderboard_prefix(self, ctx):
+        embed = await self.generate_leaderboard_embed(ctx.guild)
+        if embed:
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("❌ There are no rich people yet!")
+
+    def cog_unload(self):
         self.client.close()
         print("Leaderboard MongoDB client closed.")
 
