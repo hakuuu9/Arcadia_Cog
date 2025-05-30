@@ -18,7 +18,7 @@ class Leaderboard(commands.Cog):
             return None
 
         # You can replace this emoji with your actual bot's emoji
-        emoji = "<a:your_custom_emoji:123456789012345678>"  # Replace with actual animated or static emoji ID
+        emoji = "<:11564whitecrown:1378027038614491226>"  # Replace with actual animated or static emoji ID
         embed = discord.Embed(
             title=f"{emoji}  HALL OF FAME  {emoji}",
             description="",
