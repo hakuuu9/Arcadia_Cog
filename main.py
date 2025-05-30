@@ -71,7 +71,7 @@ class StickyCog(commands.Cog):
 
 async def setup(bot):
     MONGO_URI = "your_mongodb_connection_string_here"
-    STAFF_ROLE_ID = 123456789012345678  # Replace with your staff role ID
+    STAFF_ROLE_ID = 1347181345922748456  # Replace with your staff role ID
 
     cog = StickyCog(bot, MONGO_URI, STAFF_ROLE_ID)
     await bot.add_cog(cog)
