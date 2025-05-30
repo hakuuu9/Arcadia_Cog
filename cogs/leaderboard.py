@@ -7,46 +7,51 @@ from config import MONGO_URL
 class Leaderboard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # IMPORTANT: This must point to the SAME collection where coinflip stores balances
-        # Based on your coinflip, this should be 'users' and not 'daily'
         self.client = MongoClient(MONGO_URL)
-        self.db = self.client.hxhbot.users # Corrected: Should be 'users' collection
+        self.db = self.client.hxhbot.users
 
-    @app_commands.command(name="leaderboard", description="View the top 20 richest members")
-    async def leaderboard(self, interaction: discord.Interaction):
-        await interaction.response.defer()  # Defer to prevent timeout
-
-        # IMPORTANT: Sort by "balance" field, not "coins"
-        # Ensure the balance is treated as a number in MongoDB for correct sorting
-        # If your 'balance' field could be a string, you might need to convert it to int in your database or query
+    async def generate_leaderboard_embed(self, guild: discord.Guild):
+        # Fetch top 20 users sorted by balance
         top_users = list(self.db.find({"balance": {"$exists": True}}).sort("balance", -1).limit(20))
         
         if not top_users:
-            return await interaction.followup.send("❌ There are no rich people yet!") # Changed message slightly
+            return None
 
+        # You can replace this emoji with your actual bot's emoji
+        emoji = "<:11564whitecrown:1378027038614491226>"  # Replace with actual animated or static emoji ID
         embed = discord.Embed(
-            title="<a:lb:1376576752414883953> Kinsay Sikat sa Barya? (Richest Members)",
+            title=f"{emoji} Hall of Fame",
             description="",
-            color=discord.Color.gold() # Changed color for better visibility, adjust as desired
+            color=discord.Color.gold()
         )
 
-        # Build the description string
         for index, user in enumerate(top_users, start=1):
-            user_id = int(user["_id"]) # Ensure user_id is an integer if used with get_member
-            member = interaction.guild.get_member(user_id) # Try to get the member from cache
-            
-            # Use member's display name if found, otherwise fall back to a mention
+            user_id = int(user["_id"])
+            member = guild.get_member(user_id)
             name = member.display_name if member else f"<@{user_id}>"
-            
-            # IMPORTANT: Get balance from the "balance" field, not "coins"
-            balance = user.get("balance", 0) 
-            
-            embed.description += f"**{index}.** {name} — ₱{balance:,}\n" # Added comma formatting for balance
+            balance = user.get("balance", 0)
+            embed.description += f"**{index}.** {name} — ₱{balance:,}\n"
 
-        await interaction.followup.send(embed=embed)
+        return embed
+
+    @app_commands.command(name="leaderboard", description="View the top 20 richest members")
+    async def leaderboard_slash(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        embed = await self.generate_leaderboard_embed(interaction.guild)
+        if embed:
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send("❌ There are no rich people yet!")
+
+    @commands.command(name="leaderboard")
+    async def leaderboard_prefix(self, ctx):
+        embed = await self.generate_leaderboard_embed(ctx.guild)
+        if embed:
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("❌ There are no rich people yet!")
 
     def cog_unload(self):
-        # Good practice: Close the MongoDB client when the cog is unloaded
         self.client.close()
         print("Leaderboard MongoDB client closed.")
 
