@@ -42,12 +42,13 @@ class AFK(commands.Cog):
             upsert=True
         )
 
-        afk_message = f"You are now **AFK**"
+        # New AFK message format
+        afk_message = f"You are now **AFK!**\n"
         if reason:
-            afk_message += f": **{reason}**"
-        afk_message += f". I'll let people know when they mention you."
+            afk_message += f"Reason: **{reason}**\n"
+        afk_message += f"I'll let people know when they mention you."
         
-        await send_response_func(f"✅ {afk_message}")
+        await send_response_func(afk_message) # No "✅" prefix here as per new request
         
         # Optionally, change nickname to indicate AFK
         try:
@@ -68,12 +69,11 @@ class AFK(commands.Cog):
     @app_commands.command(name="afk", description="Set yourself as AFK with an optional reason.")
     @app_commands.describe(reason="The reason for being AFK (optional).")
     async def afk_slash(self, interaction: discord.Interaction, reason: str = None):
-        # Defer the response first (ephemeral=False means visible to everyone)
         await interaction.response.defer(ephemeral=False) 
         await self.process_afk_set(
             interaction.user,
             reason,
-            interaction.followup.send # Use followup.send for deferred responses
+            interaction.followup.send
         )
 
     # --- Prefix Command: $afk ---
@@ -82,32 +82,26 @@ class AFK(commands.Cog):
         await self.process_afk_set(
             ctx.author,
             reason,
-            ctx.send # Use ctx.send for prefix commands
+            ctx.send
         )
 
     # --- Listener: on_message ---
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Ignore bot messages and messages from DMs
         if message.author.bot or not message.guild:
             return
 
-        # --- Check if the author of the message is AFK (to clear their status) ---
         user_id = str(message.author.id)
         user_data = self.db.find_one({"_id": user_id})
 
         if user_data and "afk" in user_data:
-            # Clear AFK status
             self.db.update_one({"_id": user_id}, {"$unset": {"afk": ""}})
             
-            # Remove [AFK] from nickname if present
             try:
-                # Check if bot has permissions to change nickname and role hierarchy allows
                 if message.guild.me.guild_permissions.manage_nicknames and message.author.top_role.position < message.guild.me.top_role.position:
                     if message.author.nick and message.author.nick.startswith("[AFK]"):
-                        # Restore original nickname (remove "[AFK] ")
                         original_nick = message.author.nick[len("[AFK] "):].strip()
-                        await message.author.edit(nick=original_nick if original_nick else None) # Set to None to clear custom nick
+                        await message.author.edit(nick=original_nick if original_nick else None)
                 elif not message.guild.me.guild_permissions.manage_nicknames:
                     print(f"Bot lacks 'manage_nicknames' permission to clear AFK nickname in guild {message.guild.name}")
                 elif message.author.top_role.position >= message.guild.me.top_role.position:
@@ -118,21 +112,17 @@ class AFK(commands.Cog):
             except Exception as e:
                 print(f"An error occurred while clearing AFK nickname: {e}")
 
-            # Send welcome back message
             afk_time = user_data["afk"]["time"]
             duration_str = self.format_duration(datetime.utcnow() - afk_time)
             await message.channel.send(f"👋 Welcome back, {message.author.mention}! You were AFK for **{duration_str}**.")
             
-            return # Don't process mentions if the author just came back from AFK
+            return
 
-        # --- Check for mentions of AFK users ---
-        # Don't process commands here. That's handled by bot.process_commands() in main.py
-        # We only care about mentions within non-command messages.
         if message.content.startswith(self.bot.command_prefix):
-             return # Ignore if it's a command, let bot.process_commands handle it.
+             return
 
         for member in message.mentions:
-            if member.bot: # Don't check if another bot is AFK
+            if member.bot:
                 continue
 
             member_id = str(member.id)
@@ -143,14 +133,14 @@ class AFK(commands.Cog):
                 afk_time = afk_data["afk"]["time"]
                 
                 duration_str = self.format_duration(datetime.utcnow() - afk_time)
-                response = f"🚫 {member.mention} is currently **AFK**"
+                
+                # New AFK mention message format
+                response = f"{member.mention} is currently **AFK!**\n"
                 if reason:
-                    response += f" with reason: **{reason}**"
-                response += f" (AFK for **{duration_str}**)."
+                    response += f"With reason: **{reason}**\n"
+                response += f"for **{duration_str}**"
                 
                 await message.channel.send(response)
-                # Only send one AFK response per message for mentioned users.
-                # If you want to notify for ALL mentioned AFK users, remove this return.
                 return 
 
     def cog_unload(self):
