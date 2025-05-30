@@ -1,53 +1,77 @@
-import discord
 from discord.ext import commands
-from config import db  # Import your database object from config.py
+import discord
+import motor.motor_asyncio  # async MongoDB driver
 
-class Sticky(commands.Cog):
-    def __init__(self, bot):
+class StickyCog(commands.Cog):
+    def __init__(self, bot, mongo_uri, db_name):
         self.bot = bot
-        self.collection = db["sticky_messages"]
 
-    def is_staff(self, ctx):
-        return ctx.author.guild_permissions.manage_messages
+        # MongoDB setup
+        self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri)
+        self.db = self.mongo_client[db_name]
+        self.collection = self.db['sticky_messages']
 
-    @commands.command()
+        self.sticky_messages = {}  # channel_id -> dict
+
+        # Load existing sticky messages from DB
+        self.bot.loop.create_task(self.load_sticky_messages())
+
+    async def load_sticky_messages(self):
+        async for doc in self.collection.find({}):
+            channel_id = doc['channel_id']
+            self.sticky_messages[channel_id] = {
+                "message": doc['message'],
+                "message_id": doc['message_id'],
+                "author": doc['author']
+            }
+
+    def is_staff():
+        async def predicate(ctx):
+            staff_role = discord.utils.get(ctx.guild.roles, name="Staff")
+            return staff_role in ctx.author.roles or ctx.author.guild_permissions.manage_messages
+        return commands.check(predicate)
+
+    @commands.command(name="sticky")
+    @is_staff()
     async def sticky(self, ctx, *, message: str):
-        if not self.is_staff(ctx):
-            await ctx.send("❌ You don't have permission to use this command.", delete_after=5)
-            return
-
-        existing = await self.collection.find_one({"channel_id": ctx.channel.id})
-        if existing:
+        if ctx.channel.id in self.sticky_messages:
             await ctx.send("There's already a sticky message in this channel. Use `$unsticky` first.", delete_after=5)
             return
 
         sticky_msg = await ctx.send(message)
+        self.sticky_messages[ctx.channel.id] = {
+            "message": message,
+            "message_id": sticky_msg.id,
+            "author": ctx.author.id
+        }
+        # Save to DB
         await self.collection.insert_one({
             "channel_id": ctx.channel.id,
             "message": message,
             "message_id": sticky_msg.id,
-            "author_id": ctx.author.id
+            "author": ctx.author.id
         })
+
         await ctx.send("Sticky message set successfully.", delete_after=5)
 
-    @commands.command()
+    @commands.command(name="unsticky")
+    @is_staff()
     async def unsticky(self, ctx):
-        if not self.is_staff(ctx):
-            await ctx.send("❌ You don't have permission to use this command.", delete_after=5)
-            return
-
-        existing = await self.collection.find_one({"channel_id": ctx.channel.id})
-        if not existing:
+        if ctx.channel.id not in self.sticky_messages:
             await ctx.send("There's no sticky message in this channel.", delete_after=5)
             return
 
+        # Try to delete the sticky message from the channel
         try:
-            old_msg = await ctx.channel.fetch_message(existing["message_id"])
+            old_msg = await ctx.channel.fetch_message(self.sticky_messages[ctx.channel.id]["message_id"])
             await old_msg.delete()
         except discord.NotFound:
             pass
 
+        del self.sticky_messages[ctx.channel.id]
+        # Remove from DB
         await self.collection.delete_one({"channel_id": ctx.channel.id})
+
         await ctx.send("Sticky message removed successfully.", delete_after=5)
 
     @commands.Cog.listener()
@@ -55,25 +79,27 @@ class Sticky(commands.Cog):
         if message.author.bot:
             return
 
-        # Let commands process normally
         await self.bot.process_commands(message)
 
-        sticky_data = await self.collection.find_one({"channel_id": message.channel.id})
-        if not sticky_data:
-            return
+        channel_id = message.channel.id
+        if channel_id in self.sticky_messages:
+            data = self.sticky_messages[channel_id]
 
-        try:
-            old_msg = await message.channel.fetch_message(sticky_data["message_id"])
-            await old_msg.delete()
-        except discord.NotFound:
-            pass
+            try:
+                old_msg = await message.channel.fetch_message(data["message_id"])
+                await old_msg.delete()
+            except discord.NotFound:
+                pass
 
-        new_msg = await message.channel.send(sticky_data["message"])
-        await self.collection.update_one(
-            {"channel_id": message.channel.id},
-            {"$set": {"message_id": new_msg.id}}
-        )
+            new_msg = await message.channel.send(data["message"])
+            self.sticky_messages[channel_id]["message_id"] = new_msg.id
+
+            # Update DB with new message ID
+            await self.collection.update_one(
+                {"channel_id": channel_id},
+                {"$set": {"message_id": new_msg.id}}
+            )
 
 
-async def setup(bot):
-    await bot.add_cog(Sticky(bot))
+# To add this cog:
+# bot.add_cog(StickyCog(bot, mongo_uri="mongodb+srv://username:password@clusterurl", db_name="yourdbname"))
