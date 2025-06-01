@@ -23,7 +23,7 @@ class Daily(commands.Cog):
         user_data = self.db.find_one({'_id': str(user.id)})
 
         amount = 500
-        emoji = "<:1916pepecoin:1376564847088504872>"
+        emoji = "<:arcadiacoin:1378656679704395796>"
 
         if user_data and 'last_claim' in user_data:
             last_claim = user_data['last_claim']
