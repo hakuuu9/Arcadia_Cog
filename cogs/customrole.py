@@ -12,8 +12,8 @@ class CustomRole(commands.Cog):
         self.trio_role = {879936602414133288, 1275065396705362041, 1092795368556732478}
         self.check_expiry.start()
 
-   def is_staff(self, user: discord.User | discord.Member):
-    return user.id in self.trio_role
+    def is_staff(self, user: discord.User | discord.Member):
+        return user.id in self.trio_role
 
     @app_commands.command(name="role-list", description="Register a custom role for a member (staff only)")
     @app_commands.describe(member="Member to assign custom role", role_name="Name of the custom role")
@@ -53,7 +53,6 @@ class CustomRole(commands.Cog):
         if not existing:
             return await interaction.response.send_message(f"❌ No role entry found for {member.mention} with role **{old_role_name}**.", ephemeral=True)
 
-        # Remove old entry, insert new one with updated role name
         self.db.delete_one({"_id": f"{member.id}_{old_role_name}"})
         self.db.insert_one({
             "_id": f"{member.id}_{new_role_name}",
@@ -125,7 +124,6 @@ class CustomRole(commands.Cog):
             role_name = entry.get("role_name", "Unknown Role")
             await channel.send(f"⏰ Custom role **{role_name}** for **{member_name}** has expired.")
 
-            # Remove expired entry
             self.db.delete_one({"_id": entry["_id"]})
 
     @check_expiry.before_loop
