@@ -19,7 +19,7 @@ class Leaderboard(commands.Cog):
         emoji = "<:11564whitecrown:1378027038614491226>"
         embed = discord.Embed(
             title=f"{emoji} ARCADIA LEADERBOARD {emoji}",
-            description="\"Wealth is the ability to fully experience life.\" — Henry David Thoreau\n\n",
+            description="_“Fortune favors the bold. Here are the richest among us.”_\n",
             color=discord.Color.from_rgb(0, 0, 0)
         )
 
