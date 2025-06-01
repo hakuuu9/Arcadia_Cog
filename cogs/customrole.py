@@ -8,7 +8,7 @@ from config import MONGO_URL, CHANNEL_ID_TO_NOTIFY
 class CustomRole(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = MongoClient(MONGO_URL).hxhbot.customroles
+        self.db = MongoClient(MONGO_URL)["hxhbot"]["customroles"]
         self.trio_role = {879936602414133288, 1275065396705362041, 1092795368556732478}
         self.check_expiry.start()
 
