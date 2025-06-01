@@ -9,94 +9,103 @@ class Leaderboard(commands.Cog):
         self.bot = bot
         self.client = MongoClient(MONGO_URL)
         self.db = self.client.hxhbot.users
-        self.embed_color = discord.Color.from_rgb(0, 0, 0)
-        self.title = "🏆 ARCADIA LEADERBOARD 🏆"
-        self.quote = "_“Fortune favors the bold. Here are the richest among us.”_"
 
     async def fetch_top_users(self):
-        # Fetch top 100 users to allow some buffer for pagination
-        return list(self.db.find({"balance": {"$exists": True}}).sort("balance", -1).limit(100))
+        # Get top 100 users by balance (you can limit as needed)
+        top_users = list(self.db.find({"balance": {"$exists": True}}).sort("balance", -1).limit(100))
+        return top_users
 
-    def generate_embed(self, guild: discord.Guild, users, page: int, per_page=8):
-        start = page * per_page
-        end = start + per_page
-        selected_users = users[start:end]
-
+    def create_embed(self, guild, users, page, per_page=8):
+        emoji = "<:11564whitecrown:1378027038614491226>"
         embed = discord.Embed(
-            title=self.title,
-            description=self.quote + "\n\n",
-            color=self.embed_color
+            title=f"{emoji} ARCADIA LEADERBOARD {emoji}",
+            description="\"Wealth is the ability to fully experience life.\" — Henry David Thoreau\n\n",
+            color=discord.Color.from_rgb(0, 0, 0)
         )
 
-        if not selected_users:
+        start = page * per_page
+        end = start + per_page
+        page_users = users[start:end]
+
+        if not page_users:
             embed.description += "No users found on this page."
             return embed
 
-        for idx, user in enumerate(selected_users, start=start + 1):
+        for i, user in enumerate(page_users, start=start + 1):
             try:
                 user_id = int(user["_id"])
                 member = guild.get_member(user_id)
                 name = member.display_name if member else f"<@{user_id}>"
                 balance = user.get("balance", 0)
-                embed.description += f"**{idx}.** {name} — ₱{balance:,}\n\n"
-            except Exception as e:
-                print(f"[Leaderboard] Skipped user #{idx} — Error: {e}")
-                continue
-        
-        embed.set_footer(text=f"Page {page + 1} / {((len(users) - 1) // per_page) + 1}")
+                embed.description += f"**{i}.** {name} — ₱{balance:,}\n\n"  # extra newline for spacing
+            except Exception:
+                embed.description += f"**{i}.** <Unknown User> — ₱{user.get('balance', 0):,}\n\n"
+
+        embed.set_footer(text=f"Page {page + 1} / {(len(users) - 1) // per_page + 1}")
         return embed
 
-    @app_commands.command(name="leaderboard", description="View the top richest members")
+    class LeaderboardView(discord.ui.View):
+        def __init__(self, cog, users, guild, *, timeout=60):
+            super().__init__(timeout=timeout)
+            self.cog = cog
+            self.users = users
+            self.guild = guild
+            self.page = 0
+            self.per_page = 8
+
+            # Disable prev button on first page initially
+            self.prev_button.disabled = True
+            # Disable next button if only 1 page
+            if len(users) <= self.per_page:
+                self.next_button.disabled = True
+
+        async def update_embed(self, interaction):
+            embed = self.cog.create_embed(self.guild, self.users, self.page, self.per_page)
+            await interaction.edit_original_response(embed=embed, view=self)
+
+        @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary)
+        async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer()
+            self.page -= 1
+            if self.page <= 0:
+                self.page = 0
+                self.prev_button.disabled = True
+            self.next_button.disabled = False
+            await self.update_embed(interaction)
+
+        @discord.ui.button(label="Next", style=discord.ButtonStyle.primary)
+        async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer()
+            max_page = (len(self.users) - 1) // self.per_page
+            self.page += 1
+            if self.page >= max_page:
+                self.page = max_page
+                self.next_button.disabled = True
+            self.prev_button.disabled = False
+            await self.update_embed(interaction)
+
+        async def on_timeout(self):
+            # Disable buttons when timed out
+            for child in self.children:
+                child.disabled = True
+            # Try to edit the message to disable buttons
+            try:
+                # self.message is set after sending
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+    @app_commands.command(name="leaderboard", description="View the top 20 richest members")
     async def leaderboard_slash(self, interaction: discord.Interaction):
         await interaction.response.defer()
         users = await self.fetch_top_users()
         if not users:
             return await interaction.followup.send("❌ There are no rich people yet!")
 
-        # Start on page 0
-        page = 0
-        embed = self.generate_embed(interaction.guild, users, page)
-
-        # Create buttons
-        prev_button = discord.ui.Button(label="◀ Prev", style=discord.ButtonStyle.gray)
-        next_button = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.gray)
-
-        # Disable prev initially because we start at page 0
-        prev_button.disabled = True
-        if len(users) <= 8:
-            next_button.disabled = True
-
-        view = discord.ui.View(timeout=180)
-        view.add_item(prev_button)
-        view.add_item(next_button)
-
+        view = self.LeaderboardView(self, users, interaction.guild, timeout=60)
+        embed = self.create_embed(interaction.guild, users, page=0, per_page=8)
         message = await interaction.followup.send(embed=embed, view=view)
-
-        async def button_callback(inter_btn):
-            nonlocal page
-            if inter_btn.user.id != interaction.user.id:
-                return await inter_btn.response.send_message("This is not your interaction.", ephemeral=True)
-
-            if inter_btn.custom_id == "prev":
-                if page > 0:
-                    page -= 1
-            elif inter_btn.custom_id == "next":
-                if (page + 1) * 8 < len(users):
-                    page += 1
-
-            # Update embed and buttons
-            new_embed = self.generate_embed(interaction.guild, users, page)
-            prev_button.disabled = (page == 0)
-            next_button.disabled = (page + 1) * 8 >= len(users)
-
-            await inter_btn.response.edit_message(embed=new_embed, view=view)
-
-        prev_button.callback = button_callback
-        next_button.callback = button_callback
-
-        # Set custom_ids for buttons for identification
-        prev_button.custom_id = "prev"
-        next_button.custom_id = "next"
+        view.message = message  # Save message to update buttons on timeout
 
     @commands.command(name="leaderboard")
     async def leaderboard_prefix(self, ctx):
@@ -104,45 +113,10 @@ class Leaderboard(commands.Cog):
         if not users:
             return await ctx.send("❌ There are no rich people yet!")
 
-        page = 0
-        embed = self.generate_embed(ctx.guild, users, page)
-
-        prev_button = discord.ui.Button(label="◀ Prev", style=discord.ButtonStyle.gray)
-        next_button = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.gray)
-        prev_button.disabled = True
-        if len(users) <= 8:
-            next_button.disabled = True
-
-        view = discord.ui.View(timeout=180)
-        view.add_item(prev_button)
-        view.add_item(next_button)
-
+        view = self.LeaderboardView(self, users, ctx.guild, timeout=60)
+        embed = self.create_embed(ctx.guild, users, page=0, per_page=8)
         message = await ctx.send(embed=embed, view=view)
-
-        async def button_callback(inter_btn):
-            nonlocal page
-            # Only allow original ctx author to interact
-            if inter_btn.user.id != ctx.author.id:
-                return await inter_btn.response.send_message("This is not your interaction.", ephemeral=True)
-
-            if inter_btn.custom_id == "prev":
-                if page > 0:
-                    page -= 1
-            elif inter_btn.custom_id == "next":
-                if (page + 1) * 8 < len(users):
-                    page += 1
-
-            new_embed = self.generate_embed(ctx.guild, users, page)
-            prev_button.disabled = (page == 0)
-            next_button.disabled = (page + 1) * 8 >= len(users)
-
-            await inter_btn.response.edit_message(embed=new_embed, view=view)
-
-        prev_button.callback = button_callback
-        next_button.callback = button_callback
-
-        prev_button.custom_id = "prev"
-        next_button.custom_id = "next"
+        view.message = message
 
     def cog_unload(self):
         self.client.close()
