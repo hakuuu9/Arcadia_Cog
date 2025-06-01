@@ -7,9 +7,9 @@ from pymongo import MongoClient
 from config import MONGO_URL # Assuming config.py is in the same directory
 
 # Re-use emojis from previous commands for consistency
-CHICKEN_EMOJI = "<:chickenshop:1376780896149176420>"
-WIN_EMOJI = "<:win_cf:1376735656042299483>"
-LOSE_EMOJI = "<:lose_cf:1376735674132332574>"
+CHICKEN_EMOJI = "<:cockfight:1378658097954033714>"
+WIN_EMOJI = "<:losecf:1378659630837665874>"
+LOSE_EMOJI = "<:wincf:1378659531546165301>"
 FIGHT_EMOJI = "⚔️" # Default fight emoji. Replace if you have a custom one (e.g., "<:your_fight_emoji:ID>")
 
 class Cockfight(commands.Cog):
