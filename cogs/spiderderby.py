@@ -7,8 +7,8 @@ from pymongo import MongoClient
 from config import MONGO_URL # Assuming config.py is in the same directory
 
 # Define your custom animated spider emojis
-SPIDER_RIGHT_EMOJI = "<a:spiderright:1378663905227964466>"
-SPIDER_LEFT_EMOJI = "<a:spiderleft:1378663839343706172>"
+SPIDER_RIGHT_EMOJI = "<:rspider:1378665074092412948>"
+SPIDER_LEFT_EMOJI = "<:lspider:1378665089585909791>"
 FIGHT_EMOJI = "⚔️" # General fight emoji
 CLASH_EMOJI = "💥" # For impact effect
 
@@ -50,7 +50,7 @@ class SpiderDerby(commands.Cog):
 
         # Map choice string to emoji
         chosen_spider_emoji = SPIDER_RIGHT_EMOJI if spider_choice == "right" else SPIDER_LEFT_EMOJI
-        chosen_spider_name = "Going Right Spider" if spider_choice == "right" else "Going Left Spider"
+        chosen_spider_name = "Right Spider" if spider_choice == "right" else "Left Spider"
 
         # --- Spider Derby Introduction ---
         await interaction.followup.send(
