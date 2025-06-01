@@ -11,8 +11,11 @@ CHICKEN_COST = 10
 ANTI_ROB_EMOJI = "<:lock:1378669263325495416>"
 ANTI_ROB_COST = 1000
 
-CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"  # Replace with actual emoji ID
+CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"
 CUSTOM_ROLE_COST = 150000
+
+# Replace with your staff channel ID
+STAFF_CHANNEL_ID = 1357656511974871202  # ← UPDATE THIS
 
 class Shop(commands.Cog):
     def __init__(self, bot):
@@ -36,9 +39,8 @@ class Shop(commands.Cog):
             ),
             color=discord.Color.dark_red()
         )
-        embed.set_thumbnail(url="https://i.imgur.com/example_chicken_shop_icon.png")  # Optional: update image
+        embed.set_thumbnail(url="https://i.imgur.com/example_chicken_shop_icon.png")
         embed.set_footer(text="🕶️ Welcome to the underworld of Arcadia.")
-
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="buy", description="Buy items from the shop.")
@@ -65,13 +67,11 @@ class Shop(commands.Cog):
                     f"❌ You don't have enough money! You need ₱{total_cost:,} but only have ₱{current_balance:,}.",
                     ephemeral=True
                 )
-
             self.db.update_one(
                 {"_id": user_id},
                 {"$inc": {"balance": -total_cost, "chickens_owned": amount}},
                 upsert=True
             )
-
             await interaction.followup.send(
                 f"✅ You bought {amount} {CHICKEN_EMOJI} **Chicken(s)** for ₱{total_cost:,}!\n"
                 f"New balance: ₱{current_balance - total_cost:,}.\n"
@@ -85,13 +85,11 @@ class Shop(commands.Cog):
                     f"❌ You don't have enough money! You need ₱{total_cost:,} but only have ₱{current_balance:,}.",
                     ephemeral=True
                 )
-
             self.db.update_one(
                 {"_id": user_id},
                 {"$inc": {"balance": -total_cost, "anti_rob_items": amount}},
                 upsert=True
             )
-
             await interaction.followup.send(
                 f"✅ You bought {amount} {ANTI_ROB_EMOJI} **Anti-Rob Shield(s)** for ₱{total_cost:,}!\n"
                 f"New balance: ₱{current_balance - total_cost:,}.\n"
@@ -105,18 +103,24 @@ class Shop(commands.Cog):
                     f"❌ You need ₱{total_cost:,} to buy {amount} custom role(s), but you only have ₱{current_balance:,}.",
                     ephemeral=True
                 )
-
             self.db.update_one(
                 {"_id": user_id},
                 {"$inc": {"balance": -total_cost, "custom_roles": amount}},
                 upsert=True
             )
-
             await interaction.followup.send(
                 f"🎨 You bought {amount} {CUSTOM_ROLE_EMOJI} **Custom Role(s)** for ₱{total_cost:,}!\n"
                 f"New balance: ₱{current_balance - total_cost:,}.\n"
                 f"Staff will contact you soon to set up your role(s)."
             )
+
+            # Notify staff
+            staff_channel = interaction.guild.get_channel(STAFF_CHANNEL_ID)
+            if staff_channel:
+                await staff_channel.send(
+                    f"🎨 {interaction.user.mention} just bought {amount} custom role(s)!\n"
+                    f"Please reach out to help them set it up."
+                )
 
         else:
             await interaction.followup.send(
