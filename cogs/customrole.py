@@ -8,7 +8,7 @@ from config import MONGO_URL, CHANNEL_ID_TO_NOTIFY
 class CustomRole(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = MongoClient(MONGO_URL)["hxhbot"]["customroles"]
+        self.db = MongoClient(MONGO_URL).hxhbot.customroles
         self.trio_role = {879936602414133288, 1275065396705362041, 1092795368556732478}
         self.check_expiry.start()
 
@@ -85,12 +85,36 @@ class CustomRole(commands.Cog):
         if not results:
             return await interaction.response.send_message("No custom role entries found.", ephemeral=True)
 
+        now = datetime.utcnow()
         lines = []
+
         for r in results:
             member_name = r.get("member_name", "Unknown Member")
             role_name = r.get("role_name", "Unknown Role")
-            lines.append(f"**{member_name}** — Role: **{role_name}**")
+            expires_at = r.get("expires_at")
 
+            if expires_at:
+                delta = expires_at - now
+                if delta.total_seconds() <= 0:
+                    time_left = "*expired*"
+                else:
+                    days = delta.days
+                    hours = delta.seconds // 3600
+                    mins = (delta.seconds % 3600) // 60
+                    parts = []
+                    if days > 0:
+                        parts.append(f"{days} day{'s' if days != 1 else ''}")
+                    if hours > 0:
+                        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+                    if mins > 0:
+                        parts.append(f"{mins} min{'s' if mins != 1 else ''}")
+                    time_left = "in " + ", ".join(parts)
+            else:
+                time_left = "*unknown*"
+
+            lines.append(f"**{member_name}** — Role: **{role_name}** — ⏳ {time_left}")
+
+        # Pagination for messages longer than 2000 characters
         chunks = []
         chunk = ""
         for line in lines:
@@ -124,6 +148,7 @@ class CustomRole(commands.Cog):
             role_name = entry.get("role_name", "Unknown Role")
             await channel.send(f"⏰ Custom role **{role_name}** for **{member_name}** has expired.")
 
+            # Remove expired entry
             self.db.delete_one({"_id": entry["_id"]})
 
     @check_expiry.before_loop
