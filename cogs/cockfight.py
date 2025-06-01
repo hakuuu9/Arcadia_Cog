@@ -4,104 +4,120 @@ from discord import app_commands
 import random
 import asyncio
 from pymongo import MongoClient
-from config import MONGO_URL # Assuming config.py is in the same directory
+from config import MONGO_URL
 
-# Re-use emojis from previous commands for consistency
 CHICKEN_EMOJI = "<:cockfight:1378658097954033714>"
 WIN_EMOJI = "<:losecf:1378659630837665874>"
 LOSE_EMOJI = "<:wincf:1378659531546165301>"
-FIGHT_EMOJI = "⚔️" # Default fight emoji. Replace if you have a custom one (e.g., "<:your_fight_emoji:ID>")
+FIGHT_EMOJI = "⚔️"
 
 class Cockfight(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.client = MongoClient(MONGO_URL)
-        self.db = self.client.hxhbot.users # Connect to the same 'users' collection where balance and chickens are stored
+        self.db = self.client.hxhbot.users
 
-    @app_commands.command(name="cockfight", description="Bet an amount of ₱ on a cockfight!") # Updated description
-    @app_commands.describe(bet_amount="The amount of ₱ to bet.") # Updated argument description
-    async def cockfight(self, interaction: discord.Interaction, bet_amount: int):
+    # Slash Command
+    @app_commands.command(name="cockfight", description="Bet an amount of ₱ on a cockfight!")
+    @app_commands.describe(bet_amount="The amount of ₱ to bet.")
+    async def cockfight_slash(self, interaction: discord.Interaction, bet_amount: int):
+        await self.start_cockfight(interaction, bet_amount, interaction_type="slash")
+
+    # Manual Text Command
+    @commands.command(name="cockfight")
+    async def cockfight_text(self, ctx, bet_amount: str = None):
+        if bet_amount is None:
+            return await ctx.send("❌ Usage: `$cockfight <amount>` — Example: `$cockfight 500`")
+
+        if not bet_amount.isdigit():
+            return await ctx.send("❌ The amount must be a **positive number**. Example: `$cockfight 500`")
+
+        bet_amount = int(bet_amount)
+        interaction = ctx  # Simulate interaction context
+        await self.start_cockfight(interaction, bet_amount, interaction_type="text")
+
+    async def start_cockfight(self, interaction, bet_amount: int, interaction_type="slash"):
         user_id = str(interaction.user.id)
+        is_slash = interaction_type == "slash"
 
-        # Defer the response immediately to prevent timeout, as this command involves a delay and DB interaction.
-        await interaction.response.defer(ephemeral=False)
+        if is_slash:
+            await interaction.response.defer(ephemeral=False)
 
-        # Fetch user data (balance and chickens owned)
         user_data = self.db.find_one({"_id": user_id})
         current_balance = int(user_data.get("balance", 0)) if user_data else 0
         chickens_owned = int(user_data.get("chickens_owned", 0)) if user_data else 0
 
-        # --- Input Validation ---
         if bet_amount <= 0:
-            return await interaction.followup.send("❌ You must bet a positive amount.", ephemeral=True)
+            return await self.send_message(interaction, "❌ You must bet a positive amount.", is_slash)
 
         if current_balance < bet_amount:
-            return await interaction.followup.send(
+            return await self.send_message(
+                interaction,
                 f"❌ You don't have enough money! You have ₱{current_balance:,} but tried to bet ₱{bet_amount:,}.",
-                ephemeral=True
+                is_slash
             )
 
         if chickens_owned <= 0:
-            return await interaction.followup.send(
+            return await self.send_message(
+                interaction,
                 f"❌ You need at least one {CHICKEN_EMOJI} Chicken to participate in a cockfight! Buy one from `/shop`.",
-                ephemeral=True
+                is_slash
             )
 
-        # --- Cockfight Simulation ---
-        # Initial message to start the fight
-        await interaction.followup.send(
+        await self.send_message(
+            interaction,
             f"{interaction.user.mention}'s {CHICKEN_EMOJI} Chicken enters the arena, betting ₱{bet_amount:,}! {FIGHT_EMOJI}\n"
-            f"The fight is on... (Result in 3 seconds)"
+            f"The fight is on... (Result in 3 seconds)",
+            is_slash
         )
 
-        # Simulate fight delay
-        await asyncio.sleep(3) # A 3-second delay for suspense
+        await asyncio.sleep(3)
 
-        # Determine outcome (50/50 chance for now, you can adjust this logic later)
-        is_win = random.choice([True, False]) # True for Win, False for Lose
+        is_win = random.choice([True, False])
 
         if is_win:
-            # Player wins: Increase balance, chickens_owned remains the same
             amount_change_balance = bet_amount
-            # No change to chickens on win
-            
-            new_balance = current_balance + amount_change_balance
-            new_chickens_owned = chickens_owned # Chickens don't change on a win
+            new_balance = current_balance + bet_amount
+            new_chickens_owned = chickens_owned
 
-            # Update database
             self.db.update_one(
                 {"_id": user_id},
                 {"$inc": {"balance": amount_change_balance}},
                 upsert=True
             )
-            
-            # Send win message
-            await interaction.followup.send(
+
+            await self.send_message(
+                interaction,
                 f"🎉 {interaction.user.mention}'s {CHICKEN_EMOJI} Chicken fought bravely and WON ₱{bet_amount:,}!\n"
                 f"{WIN_EMOJI} Your new balance is ₱{new_balance:,}.\n"
-                f"You still have {new_chickens_owned} {CHICKEN_EMOJI} Chicken(s)."
+                f"You still have {new_chickens_owned} {CHICKEN_EMOJI} Chicken(s).",
+                is_slash
             )
         else:
-            # Player loses: Decrease balance, lose one chicken
             amount_change_balance = -bet_amount
-            amount_change_chickens = -1 # Lose one chicken
-
+            amount_change_chickens = -1
             new_balance = current_balance + amount_change_balance
-            new_chickens_owned = chickens_owned + amount_change_chickens # Decrement by 1
+            new_chickens_owned = chickens_owned - 1
 
-            # Update database
             self.db.update_one(
                 {"_id": user_id},
                 {"$inc": {"balance": amount_change_balance, "chickens_owned": amount_change_chickens}},
                 upsert=True
             )
-            
-            # Send loss message
-            await interaction.followup.send(
+
+            await self.send_message(
+                interaction,
                 f"💔 {interaction.user.mention}'s {CHICKEN_EMOJI} Chicken put up a good fight but sadly LOST ₱{bet_amount:,} and one of its own!\n"
                 f"{LOSE_EMOJI} Your new balance is ₱{new_balance:,}.\n"
-                f"You now have {new_chickens_owned} {CHICKEN_EMOJI} Chicken(s) left."
+                f"You now have {new_chickens_owned} {CHICKEN_EMOJI} Chicken(s) left.",
+                is_slash
             )
+
+    async def send_message(self, interaction, content, is_slash):
+        if is_slash:
+            await interaction.followup.send(content)
+        else:
+            await interaction.send(content)
 
     def cog_unload(self):
         self.client.close()
