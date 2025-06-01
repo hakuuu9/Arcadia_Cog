@@ -4,10 +4,9 @@ from discord import app_commands
 from pymongo import MongoClient
 from config import MONGO_URL
 
-# Role IDs that are allowed to use give/remove commands (staff only)
-STAFF_ROLE_IDS = [879936602414133288, 1275065396705362041, 1092795368556732478]  # Replace with your actual role IDs
+# Only these specific user IDs can use give/remove
+TRIO_ID = [879936602414133288, 1275065396705362041, 1092795368556732478]
 
-# Modlog channel ID
 MODLOG_CHANNEL_ID = 1364839238960549908  # Replace with your modlog channel ID
 
 class Balance(commands.Cog):
@@ -15,17 +14,14 @@ class Balance(commands.Cog):
         self.bot = bot
         self.db = MongoClient(MONGO_URL).hxhbot.users
 
-    # Text command
     @commands.command(name='balance')
     async def balance_text(self, ctx):
         await self.show_balance(ctx.author, ctx)
 
-    # Slash command
     @app_commands.command(name='balance', description='Check your coin balance')
     async def balance_slash(self, interaction: discord.Interaction):
         await self.show_balance(interaction.user, interaction)
 
-    # Shared balance logic
     async def show_balance(self, user, ctx_or_interaction):
         user_data = self.db.find_one({'_id': str(user.id)})
         balance = user_data['balance'] if user_data and 'balance' in user_data else 0
@@ -37,81 +33,80 @@ class Balance(commands.Cog):
         else:
             await ctx_or_interaction.response.send_message(message)
 
-    # /give-money
-    @app_commands.command(name='give-money', description='Give coins to a user (Staff Only)')
+    @app_commands.command(name='give-money', description='Give coins to a user by ID (Staff Only)')
     @app_commands.describe(
-        member='The member to give coins to',
+        user_id='The user ID to give coins to',
         amount='Amount of coins to give',
         reason='Reason for giving (optional)'
     )
     async def give_money(
         self,
         interaction: discord.Interaction,
-        member: discord.Member,
+        user_id: str,
         amount: int,
         reason: str = "No reason provided"
     ):
-        if not any(role.id in STAFF_ROLE_IDS for role in interaction.user.roles):
+        if interaction.user.id not in TRIO_ID:
             return await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
 
         if amount <= 0:
             return await interaction.response.send_message("❌ Amount must be greater than zero.", ephemeral=True)
 
         self.db.update_one(
-            {"_id": str(member.id)},
+            {"_id": user_id},
             {"$inc": {"balance": amount}},
             upsert=True
         )
 
         emoji = "<:arcadiacoin:1378656679704395796>"
         await interaction.response.send_message(
-            f"✅ Gave ₱{amount:,} {emoji} to {member.mention}.\n📝 Reason: {reason}"
+            f"✅ Gave ₱{amount:,} {emoji} to <@{user_id}>.\n📝 Reason: {reason}"
         )
 
         try:
-            await member.send(f"💰 You received ₱{amount:,} {emoji} from {interaction.user.mention}.\n📝 Reason: {reason}")
+            user = await self.bot.fetch_user(int(user_id))
+            await user.send(f"💰 You received ₱{amount:,} {emoji} from {interaction.user.mention}.\n📝 Reason: {reason}")
         except discord.Forbidden:
+            pass
+        except Exception:
             pass
 
         modlog = interaction.guild.get_channel(MODLOG_CHANNEL_ID)
         if modlog:
-            embed = discord.Embed(
-                title="💰 Money Given",
-                color=discord.Color.green()
-            )
+            embed = discord.Embed(title="💰 Money Given", color=discord.Color.green())
             embed.add_field(name="Staff", value=interaction.user.mention, inline=True)
-            embed.add_field(name="Target", value=member.mention, inline=True)
+            embed.add_field(name="Target", value=f"<@{user_id}>", inline=True)
             embed.add_field(name="Amount", value=f"₱{amount:,} {emoji}", inline=False)
             embed.add_field(name="Reason", value=reason, inline=False)
-            embed.set_footer(text=f"User ID: {member.id}")
+            embed.set_footer(text=f"User ID: {user_id}")
             await modlog.send(embed=embed)
 
-    # /remove-money
-    @app_commands.command(name='remove-money', description='Remove coins from a user (Staff Only)')
+    @app_commands.command(name='remove-money', description='Remove coins from a user by ID (Staff Only)')
     @app_commands.describe(
-        member='The member to deduct coins from',
+        user_id='The user ID to remove coins from',
         amount='Amount of coins to remove',
         reason='Reason for removal (optional)'
     )
     async def remove_money(
         self,
         interaction: discord.Interaction,
-        member: discord.Member,
+        user_id: str,
         amount: int,
         reason: str = "No reason provided"
     ):
-        if not any(role.id in STAFF_ROLE_IDS for role in interaction.user.roles):
+        if interaction.user.id not in TRIO_ID:
             return await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
 
         if amount <= 0:
             return await interaction.response.send_message("❌ Amount must be greater than zero.", ephemeral=True)
 
-        user_id = str(member.id)
         user_data = self.db.find_one({'_id': user_id})
         current_balance = user_data['balance'] if user_data and 'balance' in user_data else 0
 
         if current_balance < amount:
-            return await interaction.response.send_message(f"❌ {member.mention} only has ₱{current_balance:,}. Cannot remove ₱{amount:,}.", ephemeral=True)
+            return await interaction.response.send_message(
+                f"❌ <@{user_id}> only has ₱{current_balance:,}. Cannot remove ₱{amount:,}.", ephemeral=True
+            )
 
         self.db.update_one(
             {"_id": user_id},
@@ -121,27 +116,26 @@ class Balance(commands.Cog):
 
         emoji = "<:arcadiacoin:1378656679704395796>"
         await interaction.response.send_message(
-            f"✅ Removed ₱{amount:,} {emoji} from {member.mention}.\n📝 Reason: {reason}"
+            f"✅ Removed ₱{amount:,} {emoji} from <@{user_id}>.\n📝 Reason: {reason}"
         )
 
         try:
-            await member.send(f"⚠️ ₱{amount:,} {emoji} was removed from your balance by {interaction.user.mention}.\n📝 Reason: {reason}")
+            user = await self.bot.fetch_user(int(user_id))
+            await user.send(f"⚠️ ₱{amount:,} {emoji} was removed from your balance by {interaction.user.mention}.\n📝 Reason: {reason}")
         except discord.Forbidden:
+            pass
+        except Exception:
             pass
 
         modlog = interaction.guild.get_channel(MODLOG_CHANNEL_ID)
         if modlog:
-            embed = discord.Embed(
-                title="💸 Money Removed",
-                color=discord.Color.red()
-            )
+            embed = discord.Embed(title="💸 Money Removed", color=discord.Color.red())
             embed.add_field(name="Staff", value=interaction.user.mention, inline=True)
-            embed.add_field(name="Target", value=member.mention, inline=True)
+            embed.add_field(name="Target", value=f"<@{user_id}>", inline=True)
             embed.add_field(name="Amount", value=f"₱{amount:,} {emoji}", inline=False)
             embed.add_field(name="Reason", value=reason, inline=False)
-            embed.set_footer(text=f"User ID: {member.id}")
+            embed.set_footer(text=f"User ID: {user_id}")
             await modlog.send(embed=embed)
 
-# Required setup function
 async def setup(bot):
     await bot.add_cog(Balance(bot))
