@@ -39,7 +39,7 @@ class Shop(commands.Cog):
             ),
             color=discord.Color.dark_red()
         )
-        embed.set_thumbnail(url="https://i.imgur.com/example_chicken_shop_icon.png")
+        embed.set_thumbnail(url="https://i.imgur.com/JxsCfCe.gif")
         embed.set_footer(text="🕶️ Welcome to the underworld of Arcadia.")
         await interaction.response.send_message(embed=embed)
 
