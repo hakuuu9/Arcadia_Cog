@@ -20,7 +20,7 @@ class Balance(commands.Cog):
     async def show_balance(self, user, ctx_or_interaction):
         user_data = self.db.find_one({'_id': str(user.id)})
         balance = user_data['balance'] if user_data and 'balance' in user_data else 0
-        emoji = "<:1916pepecoin:1376564847088504872>"
+        emoji = "<:arcadiacoin:1378656679704395796>"
         message = f"Your current balance is ₱{balance} {emoji}"
 
         if isinstance(ctx_or_interaction, commands.Context):
