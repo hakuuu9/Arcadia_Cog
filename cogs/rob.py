@@ -13,7 +13,7 @@ MAX_ROB_AMOUNT = 200
 MIN_ROB_AMOUNT = 1
 
 # Custom rob emoji
-ROB_EMOJI = "<a:rob:1376799725986119790>"
+ROB_EMOJI = "<:steal:1378667024531718295>"
 
 # IMPORTANT: Add the Anti-Rob emoji here as well, consistent with shop.py and use.py
 ANTI_ROB_EMOJI = "<:antirob:1376801124656349214>"
