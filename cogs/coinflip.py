@@ -80,14 +80,20 @@ class CoinFlip(commands.Cog):
         else:
             await ctx.send(result_msg)
 
-    @app_commands.command(name="coinflip", description="Flip a coin and bet your ₱")
-    @app_commands.describe(choice="Choose head or tail", amount="Amount to bet")
-    async def coinflip_slash(self, interaction: discord.Interaction, choice: str, amount: int):
-        await self.handle_coinflip(interaction, choice, amount, is_slash=True)
+  @commands.command(name="coinflip")
+async def coinflip_prefix(self, ctx, choice: str = None, amount: str = None):
+    # Check if arguments are missing
+    if not choice or not amount:
+        return await ctx.send("❌ Usage: `$coinflip <head/tail> <amount>`\nExample: `$coinflip head 100`")
 
-    @commands.command(name="coinflip")
-    async def coinflip_prefix(self, ctx, choice: str, amount: int):
-        await self.handle_coinflip(ctx, choice, amount, is_slash=False)
+    # Validate that amount is a number
+    try:
+        amount = int(amount)
+    except ValueError:
+        return await ctx.send("❌ Please enter a valid number for the amount.")
+
+    await self.handle_coinflip(ctx, choice, amount, is_slash=False)
+
 
     def cog_unload(self):
         self.client.close()
