@@ -36,17 +36,17 @@ class CoinFlip(commands.Cog):
             return await interaction.followup.send(f"❌ You only have ₱{balance}.", ephemeral=True)
 
         # Inform the user that the coin is flipping
-        await interaction.followup.send(f"You chose **{choice.capitalize()}** <a:flipping:1376592368836415598>\nFlipping the coin...")
+        await interaction.followup.send(f"You chose **{choice.capitalize()}** <a:flipcoin:1378662039966453880>\nFlipping the coin...")
 
         # Delay for 2 seconds
         await asyncio.sleep(2)  
 
         result = random.choice(["head", "tail"])
-        result_emoji = "<:head:1376592499426201650>" if result == "head" else "<:tail:1376592674186068200>"
+        result_emoji = "<:headcoin:1378662273836384256>" if result == "head" else "<:tailcoin:1378662544054554726>"
 
         # Define your custom win/loss emojis
-        win_emoji = "<:win_cf:1376735656042299483>"
-        lose_emoji = "<:lose_cf:1376735674132332574>"
+        win_emoji = "<:wincf:1378659531546165301>"
+        lose_emoji = "<:losecf:1378659630837665874>"
 
         if choice == result:
             # Update balance: increment by amount, upsert=True to create document if it doesn't exist
