@@ -9,11 +9,11 @@ class CustomRole(commands.Cog):
         self.bot = bot
         self.db = MongoClient(MONGO_URL).hxhbot.customroles  # Mongo collection for role notes
 
-        # Staff role IDs allowed to use /role-list and /role-edit
-        self.staff_role_ids = {879936602414133288, 1275065396705362041, 1092795368556732478}
+        # Allowed staff USER IDs (renamed to trio_role)
+        self.trio_role = {879936602414133288, 1275065396705362041, 1092795368556732478}
 
-    def is_staff(self, member: discord.Member):
-        return any(role.id in self.staff_role_ids for role in member.roles)
+    def is_staff(self, user: discord.User | discord.Member):
+        return user.id in self.trio_role
 
     @app_commands.command(name="role-list", description="Add a note to a member's custom role (staff only)")
     @app_commands.describe(member="Member to add note for", role_name="Name of the custom role", note="Note about the role purchase")
