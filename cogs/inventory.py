@@ -6,8 +6,8 @@ from datetime import datetime, timedelta # Needed for checking Anti-Rob expiry
 from config import MONGO_URL # Assuming config.py is in the same directory
 
 # Re-use emojis for consistency across commands
-CHICKEN_EMOJI = "<:chickenshop:1376780896149176420>"
-ANTI_ROB_EMOJI = "<:antirob:1376801124656349214>"
+CHICKEN_EMOJI = "<:cockfight:1378658097954033714>"
+ANTI_ROB_EMOJI = "<:lock:1378669263325495416>"
 
 class Inventory(commands.Cog):
     def __init__(self, bot):
