@@ -7,9 +7,9 @@ from pymongo import MongoClient
 from config import MONGO_URL # Assuming config.py is in the same directory
 
 # Define your custom animated color emojis
-GREEN_EMOJI = "<a:greeng:1376794387521998932>"
-YELLOW_EMOJI = "<a:yellowg:1376794344673116301>"
-PINK_EMOJI = "<a:pinkg:1376794288012263444>"
+GREEN_EMOJI = "<a:greencg:1378660883089330298>"
+YELLOW_EMOJI = "<a:yellowcg:1378660868698538125>"
+PINK_EMOJI = "<a:pinkcg:1378660898213990560>"
 
 # List of available colors and their corresponding emojis
 COLORS = {
