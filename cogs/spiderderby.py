@@ -7,8 +7,8 @@ from pymongo import MongoClient
 from config import MONGO_URL # Assuming config.py is in the same directory
 
 # Define your custom animated spider emojis
-SPIDER_RIGHT_EMOJI = "<:spider11:1376855645931704450>"
-SPIDER_LEFT_EMOJI = "<:spider22:1376855660331012096>"
+SPIDER_RIGHT_EMOJI = "<a:spiderright:1378663905227964466>"
+SPIDER_LEFT_EMOJI = "<a:spiderleft:1378663839343706172>"
 FIGHT_EMOJI = "⚔️" # General fight emoji
 CLASH_EMOJI = "💥" # For impact effect
 
