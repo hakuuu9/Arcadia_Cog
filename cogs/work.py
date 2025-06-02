@@ -11,22 +11,37 @@ class Work(commands.Cog):
         self.db = MongoClient(MONGO_URL).hxhbot.users  # Collection for user balances
 
         self.emoji = "<:arcadiacoin:1378656679704395796>"
-        # Different message templates with a placeholder for salary and balance
+        # Different message templates with spacing and line breaks added
         self.messages = [
             # Informal Tagalog
-            "Totoy, nagbanat ng buto pero ang sweldo ₱{salary} {emoji} para na rin sa mga pang hugas ng luha mo.\n\nBagong balance mo: ₱{balance} {emoji} laban lang, kapit lang, pre!",
-            "Grabe ang sipag mo, pre! ₱{salary} {emoji} ang pasalubong mo ngayon. Balance mo ay ₱{balance} {emoji} na!",
-            "Ayos 'to, ₱{salary} {emoji} ang pasok mo! Keep it up, kapatid. Ngayon ₱{balance} {emoji} na ang pera mo.",
+            "Totoy, nagbanat ng buto pero ang sweldo ₱{salary} {emoji} para na rin sa mga pang hugas ng luha mo.\n\n"
+            "Bagong balance mo: ₱{balance} {emoji}\nLaban lang, kapit lang, pre!",
+
+            "Grabe ang sipag mo, pre! ₱{salary} {emoji} ang pasalubong mo ngayon.\n"
+            "Balance mo ay ₱{balance} {emoji} na!",
+
+            "Ayos 'to, ₱{salary} {emoji} ang pasok mo! Keep it up, kapatid.\n"
+            "Ngayon ₱{balance} {emoji} na ang pera mo.",
 
             # Casual English
-            "You worked hard and earned ₱{salary} {emoji}! Your new balance is ₱{balance} {emoji}. Keep grinding!",
-            "Nice hustle! ₱{salary} {emoji} added to your wallet. Total balance: ₱{balance} {emoji}. Don't stop now!",
-            "Your effort paid off: ₱{salary} {emoji} earned. Balance now: ₱{balance} {emoji}. Keep up the good work!",
+            "You worked hard and earned ₱{salary} {emoji}!\n"
+            "Your new balance is ₱{balance} {emoji}. Keep grinding!",
+
+            "Nice hustle! ₱{salary} {emoji} added to your wallet.\n"
+            "Total balance: ₱{balance} {emoji}. Don't stop now!",
+
+            "Your effort paid off: ₱{salary} {emoji} earned.\n"
+            "Balance now: ₱{balance} {emoji}. Keep up the good work!",
 
             # Formal English
-            "Congratulations! You have received a salary of ₱{salary} {emoji}. Your updated balance is ₱{balance} {emoji}. Well done on your dedication.",
-            "Your work has been compensated with ₱{salary} {emoji}. The current balance in your account is ₱{balance} {emoji}. Keep maintaining your excellence.",
-            "You earned ₱{salary} {emoji} for your efforts today. Your new balance stands at ₱{balance} {emoji}. Continue your productive work."
+            "Congratulations! You have received a salary of ₱{salary} {emoji}.\n"
+            "Your updated balance is ₱{balance} {emoji}. Well done on your dedication.",
+
+            "Your work has been compensated with ₱{salary} {emoji}.\n"
+            "The current balance in your account is ₱{balance} {emoji}.\nKeep maintaining your excellence.",
+
+            "You earned ₱{salary} {emoji} for your efforts today.\n"
+            "Your new balance stands at ₱{balance} {emoji}.\nContinue your productive work."
         ]
 
     @commands.command(name='work')
@@ -61,6 +76,13 @@ class Work(commands.Cog):
                 await ctx_or_interaction.followup.send(message)
             else:
                 await ctx_or_interaction.response.send_message(message)
+
+    # Custom error handler for cooldown
+    @work_text.error
+    async def work_cooldown_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            seconds = round(error.retry_after, 1)
+            await ctx.send(f"You're tired! You can work again in {seconds} seconds. Take a break!")
 
 async def setup(bot):
     await bot.add_cog(Work(bot))
