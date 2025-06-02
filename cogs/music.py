@@ -7,7 +7,7 @@ import asyncio
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.queues = {}  # guild_id: list of dict {title, url}
+        self.queues = {}  # guild_id: list of songs {title, url}
         self.current_players = {}  # guild_id: voice_client
 
     async def play_next(self, guild_id):
@@ -15,7 +15,7 @@ class Music(commands.Cog):
         vc = self.current_players.get(guild_id)
 
         if not queue or len(queue) == 0:
-            # No more songs, disconnect
+            # No more songs, disconnect voice client if connected
             if vc and vc.is_connected():
                 await vc.disconnect()
             self.current_players.pop(guild_id, None)
@@ -26,6 +26,7 @@ class Music(commands.Cog):
         title = song["title"]
 
         def after_playing(error):
+            # This runs in a different thread — use run_coroutine_threadsafe
             fut = asyncio.run_coroutine_threadsafe(self.play_next(guild_id), self.bot.loop)
             try:
                 fut.result()
@@ -33,6 +34,7 @@ class Music(commands.Cog):
                 print(f"Error in after_playing: {e}")
 
         if vc is None or not vc.is_connected():
+            # If no voice client, clear queue
             self.queues.pop(guild_id, None)
             return
 
@@ -41,12 +43,15 @@ class Music(commands.Cog):
             ffmpeg_opts = {'options': '-vn'}
             source = discord.FFmpegPCMAudio(url, **ffmpeg_opts)
             vc.play(source, after=after_playing)
+
+            # Send "Now playing" message to the voice channel text channel if possible
+            # You can cache a text channel ID or just send to the voice channel's guild's system channel
             channel = vc.channel
             coro = channel.send(f"🎶 Now playing: **{title}**")
-            fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
-            fut.result()
+            asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
         except Exception as e:
             print(f"Error playing audio: {e}")
+            # Try playing next song if error occurs
             await self.play_next(guild_id)
 
     @app_commands.command(name="join", description="Join your voice channel")
@@ -104,17 +109,27 @@ class Music(commands.Cog):
             for entry in info['entries']:
                 if entry is None:
                     continue
-                url = entry.get('url') or entry['formats'][0]['url']
+                # Get the best URL
+                url = entry.get('url')
+                if not url and 'formats' in entry and len(entry['formats']) > 0:
+                    url = entry['formats'][0]['url']
                 title = entry.get('title', 'Unknown Title')
-                queue.append({"title": title, "url": url})
-                count_added += 1
+                if url:
+                    queue.append({"title": title, "url": url})
+                    count_added += 1
             msg = f"Added {count_added} songs to the queue from playlist **{info.get('title', 'Playlist')}**."
         else:
-            url = info.get('url') or info['formats'][0]['url']
+            url = info.get('url')
+            if not url and 'formats' in info and len(info['formats']) > 0:
+                url = info['formats'][0]['url']
             title = info.get('title', 'Unknown Title')
-            queue.append({"title": title, "url": url})
-            msg = f"Added **{title}** to the queue."
+            if url:
+                queue.append({"title": title, "url": url})
+                msg = f"Added **{title}** to the queue."
+            else:
+                return await interaction.followup.send("Could not retrieve audio URL.")
 
+        # If nothing is playing, start playing the first song in queue
         if not vc.is_playing():
             await self.play_next(guild_id)
 
