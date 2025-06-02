@@ -1,4 +1,3 @@
-import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -8,8 +7,7 @@ from config import MONGO_URL
 
 CHICKEN_EMOJI = "<:cockfight:1378658097954033714>"
 ANTI_ROB_EMOJI = "<:lock:1378669263325495416>"
-CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"
-WORK_PHRASE_EMOJI = "<a:work:1378910760876380201>"  # Replace with your emoji
+CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"  # Replace with your emoji
 CUSTOM_ROLE_CHANNEL_ID = 1357656511974871202  # Replace with your actual channel ID
 
 class Inventory(commands.Cog):
@@ -29,7 +27,6 @@ class Inventory(commands.Cog):
         chickens_owned = int(user_data.get("chickens_owned", 0)) if user_data else 0
         anti_rob_items_owned = int(user_data.get("anti_rob_items", 0)) if user_data else 0
         custom_role_items = int(user_data.get("custom_role_items", 0)) if user_data else 0
-        work_phrase_tokens = int(user_data.get("work_phrase_tokens", 0)) if user_data else 0
         anti_rob_expires_at = user_data.get("anti_rob_expires_at") if user_data else None
 
         # Anti-Rob status
@@ -63,12 +60,11 @@ class Inventory(commands.Cog):
         embed.add_field(name=f"{ANTI_ROB_EMOJI} Anti-Rob Shields", value=f"{anti_rob_items_owned} owned", inline=False)
         embed.add_field(name="🛡️ Anti-Rob Protection Status", value=anti_rob_status, inline=False)
         embed.add_field(name=f"{CUSTOM_ROLE_EMOJI} Custom Role Tokens", value=f"{custom_role_items} owned", inline=False)
-        embed.add_field(name=f"{WORK_PHRASE_EMOJI} Work Phrase Tokens", value=f"{work_phrase_tokens} owned", inline=False)
 
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="inventory_use", description="Use an item from your inventory.")
-    @app_commands.describe(item="The item you want to use, like 'custom-role' or 'work'")
+    @app_commands.describe(item="The item you want to use, like 'custom-role'")
     async def inventory_use(self, interaction: discord.Interaction, item: str):
         user_id = str(interaction.user.id)
         item = item.lower()
@@ -90,35 +86,6 @@ class Inventory(commands.Cog):
                     f"{CUSTOM_ROLE_EMOJI} **{interaction.user.mention}** has used a Custom Role Token for their exclusive perk!"
                 )
             await interaction.followup.send(f"✅ You used one {CUSTOM_ROLE_EMOJI} Custom Role Token.")
-
-        elif item == "work":
-            work_phrase_tokens = int(user_data.get("work_phrase_tokens", 0))
-            if work_phrase_tokens <= 0:
-                return await interaction.followup.send("❌ You don't own any Work Phrase Tokens.")
-
-            await interaction.followup.send(
-                "✍️ Please enter your custom work phrase now. You can use `{salary}` and `{new_balance}` as placeholders.",
-                ephemeral=True
-            )
-
-            def check(m):
-                return m.author.id == interaction.user.id and m.channel == interaction.channel
-
-            try:
-                msg = await self.bot.wait_for("message", check=check, timeout=60)
-                custom_phrase = msg.content.strip()
-
-                self.db.update_one(
-                    {"_id": user_id},
-                    {
-                        "$set": {"custom_work_phrase": custom_phrase},
-                        "$inc": {"work_phrase_tokens": -1}
-                    }
-                )
-                await interaction.followup.send("✅ Your custom work phrase has been set successfully!", ephemeral=True)
-            except asyncio.TimeoutError:
-                await interaction.followup.send("⌛ You took too long to respond. Please try `/inventory_use work` again.", ephemeral=True)
-
         else:
             await interaction.followup.send("❌ That item cannot be used or does not exist.")
 
