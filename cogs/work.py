@@ -4,56 +4,47 @@ from discord import app_commands
 from pymongo import MongoClient
 from config import MONGO_URL
 import random
-from datetime import datetime, timedelta
 
 class Work(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = MongoClient(MONGO_URL).hxhbot.users  # Collection for user balances
-        self.cooldowns = {}  # To track cooldowns by user ID
+        self.client = MongoClient(MONGO_URL)
+        self.db = self.client.hxhbot.users
 
-    @commands.command(name='work')
-    @commands.cooldown(1, 10, commands.BucketType.user)  # 1 use every 10 sec per user
-    async def work_text(self, ctx):
-        await self.handle_work(ctx.author, ctx)
+    @app_commands.command(name="work", description="Earn money with your custom work phrase.")
+    async def work(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        user_data = self.db.find_one({"_id": user_id})
 
-    @app_commands.command(name='work', description='Work to earn a small salary (10s cooldown)')
-    async def work_slash(self, interaction: discord.Interaction):
-        await self.handle_work(interaction.user, interaction)
+        if not user_data:
+            return await interaction.response.send_message("❌ You don't have an account yet. Please start by earning some money first.", ephemeral=True)
 
-    async def handle_work(self, user, ctx_or_interaction):
-        # Random salary between 1 and 20
-        salary = random.randint(1, 20)
+        # Generate random salary between ₱100 and ₱500
+        salary = random.randint(100, 500)
+        new_balance = user_data.get("balance", 0) + salary
 
-        # Fetch or create user balance
-        user_data = self.db.find_one({'_id': str(user.id)})
-        if user_data and 'balance' in user_data:
-            balance = user_data['balance']
+        # Retrieve custom work phrase
+        work_phrase = user_data.get("custom_work_phrase", None)
+
+        if not work_phrase:
+            # Default work message
+            message = (
+                f"💼 You worked diligently and earned ₱{salary:,}!\n"
+                f"💰 New balance: ₱{new_balance:,}.\n"
+                f"Use `/buy work` to set your own custom work phrase!"
+            )
         else:
-            balance = 0
+            # Replace placeholders in custom work phrase
+            message = work_phrase.replace("{salary}", f"₱{salary:,}").replace("{new_balance}", f"₱{new_balance:,}")
 
-        new_balance = balance + salary
+        # Update user's balance
+        self.db.update_one({"_id": user_id}, {"$set": {"balance": new_balance}}, upsert=True)
 
-        # Update balance in DB
-        self.db.update_one({'_id': str(user.id)}, {'$set': {'balance': new_balance}}, upsert=True)
+        await interaction.response.send_message(message)
 
-        emoji = "<a:9470coin:1376564873332391966>"
-        message = (
-            f"Totoy, nagbanat ng buto pero ang sweldo ₱{salary} {emoji} para na rin sa mga pang hugas ng luha mo.\n\n"
-            f"Bagong balance mo: ₱{new_balance} {emoji} laban lang, kapit lang, pre!"
-
-        )
-
-        await self.send_response(ctx_or_interaction, message)
-
-    async def send_response(self, ctx_or_interaction, message):
-        if isinstance(ctx_or_interaction, commands.Context):
-            await ctx_or_interaction.send(message)
-        else:
-            if ctx_or_interaction.response.is_done():
-                await ctx_or_interaction.followup.send(message)
-            else:
-                await ctx_or_interaction.response.send_message(message)
+    def cog_unload(self):
+        self.client.close()
+        print("Work MongoDB client closed.")
 
 async def setup(bot):
     await bot.add_cog(Work(bot))
