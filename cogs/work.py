@@ -2,69 +2,58 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from pymongo import MongoClient
-from datetime import datetime, timedelta
-from random import randint, choice
 from config import MONGO_URL
+import random
+from datetime import datetime, timedelta
 
 class Work(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.client = MongoClient(MONGO_URL)
-        self.db = self.client.hxhbot.users
-        self.cooldowns = {}  # user_id: datetime of last work
+        self.db = MongoClient(MONGO_URL).hxhbot.users  # Collection for user balances
+        self.cooldowns = {}  # To track cooldowns by user ID
 
-    @app_commands.command(name="work", description="Work to earn money.")
-    async def work(self, interaction: discord.Interaction):
-        user_id = str(interaction.user.id)
-        now = datetime.utcnow()
+    @commands.command(name='work')
+    @commands.cooldown(1, 10, commands.BucketType.user)  # 1 use every 10 sec per user
+    async def work_text(self, ctx):
+        await self.handle_work(ctx.author, ctx)
 
-        cooldown_time = timedelta(seconds=15)  # 15 seconds cooldown
-        last_work_time = self.cooldowns.get(user_id)
+    @app_commands.command(name='work', description='Work to earn a small salary (10s cooldown)')
+    async def work_slash(self, interaction: discord.Interaction):
+        await self.handle_work(interaction.user, interaction)
 
-        if last_work_time and now - last_work_time < cooldown_time:
-            remaining = cooldown_time - (now - last_work_time)
-            seconds = int(remaining.total_seconds()) + 1
-            return await interaction.response.send_message(
-                f"⏳ You are still tired! Try again in {seconds} second(s).", ephemeral=True
-            )
+    async def handle_work(self, user, ctx_or_interaction):
+        # Random salary between 1 and 20
+        salary = random.randint(1, 20)
 
-        user_data = self.db.find_one({"_id": user_id}) or {}
-        balance = int(user_data.get("balance", 0))
+        # Fetch or create user balance
+        user_data = self.db.find_one({'_id': str(user.id)})
+        if user_data and 'balance' in user_data:
+            balance = user_data['balance']
+        else:
+            balance = 0
 
-        salary = randint(1, 500)
         new_balance = balance + salary
 
-        work_phrases = user_data.get("work_phrases", [])
+        # Update balance in DB
+        self.db.update_one({'_id': str(user.id)}, {'$set': {'balance': new_balance}}, upsert=True)
 
-        if not work_phrases:
-            phrase = "You worked hard and earned {salary}!"
-            creator_name = interaction.user.display_name
-        else:
-            entry = choice(work_phrases)
-            phrase = entry.get("phrase", "")
-            creator_name = entry.get("creator_name", interaction.user.display_name)
+        emoji = "<a:9470coin:1376564873332391966>"
+        message = (
+            f"Totoy, nagbanat ng buto pero ang sweldo ₱{salary} {emoji} para na rin sa mga pang hugas ng luha mo.\n\n"
+            f"Bagong balance mo: ₱{new_balance} {emoji} laban lang, kapit lang, pre!"
 
-            if "{salary}" not in phrase:
-                return await interaction.response.send_message(
-                    "❌ Your work phrase must include `{salary}` to show your earnings!\n"
-                    "Example usage:\n"
-                    "`You work hard and earn {salary}!`\n"
-                    "Please update your phrase accordingly.",
-                    ephemeral=True
-                )
-
-        formatted_msg = phrase.replace("{salary}", f"₱{salary:,}")
-
-        self.db.update_one({"_id": user_id}, {"$set": {"balance": new_balance}}, upsert=True)
-        self.cooldowns[user_id] = now
-
-        await interaction.response.send_message(
-            f"{formatted_msg}\n\n- {creator_name}"
         )
 
-    def cog_unload(self):
-        self.client.close()
-        print("Work MongoDB client closed.")
+        await self.send_response(ctx_or_interaction, message)
+
+    async def send_response(self, ctx_or_interaction, message):
+        if isinstance(ctx_or_interaction, commands.Context):
+            await ctx_or_interaction.send(message)
+        else:
+            if ctx_or_interaction.response.is_done():
+                await ctx_or_interaction.followup.send(message)
+            else:
+                await ctx_or_interaction.response.send_message(message)
 
 async def setup(bot):
     await bot.add_cog(Work(bot))
