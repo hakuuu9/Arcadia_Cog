@@ -14,10 +14,8 @@ ANTI_ROB_COST = 1000
 CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"
 CUSTOM_ROLE_COST = 150000
 
-WORK_PHRASE_EMOJI = "<a:work:1378910760876380201>"
-WORK_PHRASE_COST = 10000
-
-STAFF_CHANNEL_ID = 1357656511974871202  # Update this if necessary
+# Replace with your staff channel ID
+STAFF_CHANNEL_ID = 1357656511974871202  # ← UPDATE THIS
 
 class Shop(commands.Cog):
     def __init__(self, bot):
@@ -37,9 +35,7 @@ class Shop(commands.Cog):
                 f"• {ANTI_ROB_EMOJI} **Anti-Rob Shield** - ₱{ANTI_ROB_COST}\n"
                 f"  *(Use `/buy anti-rob <amount>` to purchase. Requires `/use anti-rob` later!)*\n\n"
                 f"• {CUSTOM_ROLE_EMOJI} **Custom Role** - ₱{CUSTOM_ROLE_COST}\n"
-                f"  *(Use `/buy custom-role <amount>` to purchase. Staff will reach out for role setup)*\n\n"
-                f"• {WORK_PHRASE_EMOJI} **Work Phrase** - ₱{WORK_PHRASE_COST}\n"
-                f"  *(Use `/buy work-phrase <amount>` to purchase. Allows you to set a custom work phrase)*"
+                f"  *(Use `/buy custom-role <amount>` to purchase. Staff will reach out for role setup)*"
             ),
             color=discord.Color.dark_red()
         )
@@ -60,7 +56,6 @@ class Shop(commands.Cog):
         chickens_owned = int(user_data.get("chickens_owned", 0)) if user_data else 0
         anti_rob_items_owned = int(user_data.get("anti_rob_items", 0)) if user_data else 0
         custom_roles_owned = int(user_data.get("custom_roles", 0)) if user_data else 0
-        work_phrase_tokens = int(user_data.get("work_phrase_tokens", 0)) if user_data else 0
 
         if amount <= 0:
             return await interaction.followup.send("❌ You need to buy at least 1 item.", ephemeral=True)
@@ -126,24 +121,6 @@ class Shop(commands.Cog):
                     f"🎨 {interaction.user.mention} just bought {amount} custom role(s)!\n"
                     f"Please reach out to help them set it up."
                 )
-
-        elif item == "work-phrase":
-            total_cost = WORK_PHRASE_COST * amount
-            if current_balance < total_cost:
-                return await interaction.followup.send(
-                    f"❌ You need ₱{total_cost:,} to buy {amount} work phrase token(s), but you only have ₱{current_balance:,}.",
-                    ephemeral=True
-                )
-            self.db.update_one(
-                {"_id": user_id},
-                {"$inc": {"balance": -total_cost, "work_phrase_tokens": amount}},
-                upsert=True
-            )
-            await interaction.followup.send(
-                f"📝 You bought {amount} {WORK_PHRASE_EMOJI} **Work Phrase Token(s)** for ₱{total_cost:,}!\n"
-                f"New balance: ₱{current_balance - total_cost:,}.\n"
-                f"Use `/set_work_phrase` to set your custom work phrase."
-            )
 
         else:
             await interaction.followup.send(
