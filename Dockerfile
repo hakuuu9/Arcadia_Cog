@@ -1,26 +1,23 @@
-# Use official Python slim image with version 3.12
+# Use official Python runtime as a parent image
 FROM python:3.12-slim
 
-# Avoid prompts during package installs
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install ffmpeg and system dependencies
-RUN apt-get update && \
-    apt-get install -y ffmpeg git curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Set working directory
+# Set working directory inside the container
 WORKDIR /app
 
-# Copy all files to container
-COPY . .
+# Copy requirements.txt first to leverage Docker cache if requirements don't change
+COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Make sure start.sh is executable
+# Copy the rest of the app code into the container
+COPY . .
+
+# Ensure start.sh has Unix line endings and bash compatible
 RUN chmod +x start.sh
 
-# Run the bot using start.sh
+# Expose port if needed (usually for web apps, can omit for Discord bots)
+# EXPOSE 8080
+
+# Run start.sh via bash
 CMD ["bash", "start.sh"]
