@@ -1,10 +1,10 @@
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
 from pymongo import MongoClient
 from datetime import datetime
 from config import MONGO_URL
-import asyncio
 
 CHICKEN_EMOJI = "<:cockfight:1378658097954033714>"
 ANTI_ROB_EMOJI = "<:lock:1378669263325495416>"
