@@ -4,13 +4,30 @@ from discord import app_commands
 from pymongo import MongoClient
 from config import MONGO_URL
 import random
-from datetime import datetime, timedelta
 
 class Work(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db = MongoClient(MONGO_URL).hxhbot.users  # Collection for user balances
-        self.cooldowns = {}  # To track cooldowns by user ID
+
+        self.emoji = "<:arcadiacoin:1378656679704395796>"
+        # Different message templates with a placeholder for salary and balance
+        self.messages = [
+            # Informal Tagalog
+            "Totoy, nagbanat ng buto pero ang sweldo ₱{salary} {emoji} para na rin sa mga pang hugas ng luha mo.\n\nBagong balance mo: ₱{balance} {emoji} laban lang, kapit lang, pre!",
+            "Grabe ang sipag mo, pre! ₱{salary} {emoji} ang pasalubong mo ngayon. Balance mo ay ₱{balance} {emoji} na!",
+            "Ayos 'to, ₱{salary} {emoji} ang pasok mo! Keep it up, kapatid. Ngayon ₱{balance} {emoji} na ang pera mo.",
+
+            # Casual English
+            "You worked hard and earned ₱{salary} {emoji}! Your new balance is ₱{balance} {emoji}. Keep grinding!",
+            "Nice hustle! ₱{salary} {emoji} added to your wallet. Total balance: ₱{balance} {emoji}. Don't stop now!",
+            "Your effort paid off: ₱{salary} {emoji} earned. Balance now: ₱{balance} {emoji}. Keep up the good work!",
+
+            # Formal English
+            "Congratulations! You have received a salary of ₱{salary} {emoji}. Your updated balance is ₱{balance} {emoji}. Well done on your dedication.",
+            "Your work has been compensated with ₱{salary} {emoji}. The current balance in your account is ₱{balance} {emoji}. Keep maintaining your excellence.",
+            "You earned ₱{salary} {emoji} for your efforts today. Your new balance stands at ₱{balance} {emoji}. Continue your productive work."
+        ]
 
     @commands.command(name='work')
     @commands.cooldown(1, 10, commands.BucketType.user)  # 1 use every 10 sec per user
@@ -22,27 +39,17 @@ class Work(commands.Cog):
         await self.handle_work(interaction.user, interaction)
 
     async def handle_work(self, user, ctx_or_interaction):
-        # Random salary between 1 and 20
-        salary = random.randint(1, 20)
+        salary = random.randint(1, 200)
 
-        # Fetch or create user balance
         user_data = self.db.find_one({'_id': str(user.id)})
-        if user_data and 'balance' in user_data:
-            balance = user_data['balance']
-        else:
-            balance = 0
+        balance = user_data['balance'] if user_data and 'balance' in user_data else 0
 
         new_balance = balance + salary
-
-        # Update balance in DB
         self.db.update_one({'_id': str(user.id)}, {'$set': {'balance': new_balance}}, upsert=True)
 
-        emoji = "<a:9470coin:1376564873332391966>"
-        message = (
-            f"Totoy, nagbanat ng buto pero ang sweldo ₱{salary} {emoji} para na rin sa mga pang hugas ng luha mo.\n\n"
-            f"Bagong balance mo: ₱{new_balance} {emoji} laban lang, kapit lang, pre!"
-
-        )
+        # Choose a random message template and format it
+        message_template = random.choice(self.messages)
+        message = message_template.format(salary=salary, balance=new_balance, emoji=self.emoji)
 
         await self.send_response(ctx_or_interaction, message)
 
