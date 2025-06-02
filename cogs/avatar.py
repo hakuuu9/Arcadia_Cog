@@ -27,7 +27,6 @@ class Avatar(commands.Cog):
         )
         embed.set_image(url=avatar_url)
         embed.set_footer(text=f"Requested by {ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author}")
-        embed.set_thumbnail(url=avatar_url)
 
         if isinstance(ctx_or_interaction, commands.Context):
             await ctx_or_interaction.send(embed=embed)
