@@ -26,48 +26,47 @@ class Music(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"❌ Failed to join VC: {e}")
 
-    @app_commands.command(name="play", description="Play a YouTube URL or search term")
-    @app_commands.describe(query="YouTube URL or search keywords")
-    async def play(self, interaction: discord.Interaction, query: str):
-        await interaction.response.defer()  # Required for longer download times
+ @app_commands.command(name="play", description="Play a YouTube URL or search term")
+@app_commands.describe(query="YouTube URL or search keywords")
+async def play(self, interaction: discord.Interaction, query: str):
+    await interaction.response.defer()  # defer in case it takes time
 
-        vc = interaction.guild.voice_client
-        if vc is None:
-            if interaction.user.voice is None:
-                return await interaction.followup.send("❌ You're not in a voice channel.", ephemeral=True)
-            channel = interaction.user.voice.channel
-            vc = await channel.connect()
+    vc = interaction.guild.voice_client
+    if vc is None:
+        if interaction.user.voice is None:
+            return await interaction.followup.send("You're not in a voice channel.", ephemeral=True)
+        channel = interaction.user.voice.channel
+        vc = await channel.connect()
 
-        # Ensure downloads folder exists
-        os.makedirs("downloads", exist_ok=True)
+    ytdl_opts = {
+        'format': 'bestaudio/best',
+        'noplaylist': True,
+        'quiet': True,
+        'default_search': 'ytsearch',
+        'extract_flat': False,
+    }
 
-        ytdl_opts = {
-            'format': 'bestaudio',
-            'noplaylist': True,
-            'quiet': True,
-            'default_search': 'ytsearch',
-            'outtmpl': 'downloads/%(id)s.%(ext)s',
-        }
-
-        with yt_dlp.YoutubeDL(ytdl_opts) as ytdl:
-            try:
-                info = ytdl.extract_info(query, download=False)
-                if 'entries' in info:
-                    info = info['entries'][0]
-                url = info['url']
-                title = info.get('title', 'Unknown Title')
-            except Exception as e:
-                return await interaction.followup.send(f"❌ Error fetching audio: {e}")
-
+    with yt_dlp.YoutubeDL(ytdl_opts) as ytdl:
         try:
-            vc.stop()
-            ffmpeg_opts = {
-                'options': '-vn'
-            }
-            vc.play(discord.FFmpegPCMAudio(url, **ffmpeg_opts))
-            await interaction.followup.send(f"🎶 Now playing: **{title}**")
+            info = ytdl.extract_info(query, download=False)
+            if 'entries' in info:
+                info = info['entries'][0]
+            url = info.get('url') or info['formats'][0]['url']
+            title = info.get('title', 'Unknown Title')
         except Exception as e:
-            await interaction.followup.send(f"❌ Error playing audio: {e}")
+            return await interaction.followup.send(f"Error playing audio: {e}")
+
+    vc.stop()
+    ffmpeg_opts = {
+        'options': '-vn'
+    }
+
+    try:
+        vc.play(discord.FFmpegPCMAudio(url, **ffmpeg_opts))
+        await interaction.followup.send(f"🎶 Now playing: **{title}**")
+    except Exception as e:
+        await interaction.followup.send(f"Error playing audio: {e}")
+
 
     @app_commands.command(name="stop", description="Stop the music and leave the voice channel")
     async def stop(self, interaction: discord.Interaction):
