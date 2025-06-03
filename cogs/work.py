@@ -11,7 +11,6 @@ class Work(commands.Cog):
         self.db = MongoClient(MONGO_URL).hxhbot.users  # Collection for user balances
 
         self.emoji = "<:arcadiacoin:1378656679704395796>"
-        # Different message templates with spacing and line breaks added
         self.messages = [
             # Informal Tagalog
             "Totoy, nagbanat ng buto pero ang sweldo ₱{salary} {emoji} para na rin sa mga pang hugas ng luha mo.\n\n"
@@ -44,17 +43,27 @@ class Work(commands.Cog):
             "Your new balance stands at ₱{balance} {emoji}.\nContinue your productive work."
         ]
 
+        self.slash_cooldown = commands.CooldownMapping.from_cooldown(1, 300.0, commands.BucketType.user)
+
     @commands.command(name='work')
-    @commands.cooldown(1, 60, commands.BucketType.user)  # 1 use every 60 sec per user
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown
     async def work_text(self, ctx):
         await self.handle_work(ctx.author, ctx)
 
-    @app_commands.command(name='work', description='Work to earn a small salary (60s cooldown)')
+    @app_commands.command(name='work', description='Work to earn a small salary (5m cooldown)')
     async def work_slash(self, interaction: discord.Interaction):
+        bucket = self.slash_cooldown.get_bucket(interaction.user)
+        retry_after = bucket.update_rate_limit()
+        if retry_after:
+            await interaction.response.send_message(
+                f"You're tired! You can work again in {round(retry_after)} seconds. Take a break!",
+                ephemeral=True
+            )
+            return
         await self.handle_work(interaction.user, interaction)
 
     async def handle_work(self, user, ctx_or_interaction):
-        salary = random.randint(1, 100)
+        salary = random.randint(1, 200)
 
         user_data = self.db.find_one({'_id': str(user.id)})
         balance = user_data['balance'] if user_data and 'balance' in user_data else 0
@@ -62,7 +71,6 @@ class Work(commands.Cog):
         new_balance = balance + salary
         self.db.update_one({'_id': str(user.id)}, {'$set': {'balance': new_balance}}, upsert=True)
 
-        # Choose a random message template and format it
         message_template = random.choice(self.messages)
         message = message_template.format(salary=salary, balance=new_balance, emoji=self.emoji)
 
@@ -77,11 +85,10 @@ class Work(commands.Cog):
             else:
                 await ctx_or_interaction.response.send_message(message)
 
-    # Custom error handler for cooldown
     @work_text.error
     async def work_cooldown_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
-            seconds = round(error.retry_after, 1)
+            seconds = round(error.retry_after)
             await ctx.send(f"You're tired! You can work again in {seconds} seconds. Take a break!")
 
 async def setup(bot):
