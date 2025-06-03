@@ -80,15 +80,18 @@ class Music(commands.Cog):
             vc = await channel.connect()
         self.current_players[guild_id] = vc
 
-        ytdl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'default_search': 'ytsearch',
-            'extract_flat': False,
-            'ignoreerrors': True,
-            'no_warnings': True,
-            'source_address': '0.0.0.0',
-        }
+        is_url = query.startswith("http://") or query.startswith("https://")
+
+ytdl_opts = {
+    'format': 'bestaudio/best',
+    'quiet': True,
+    'default_search': 'ytsearch' if not is_url else None,
+    'extract_flat': False,
+    'ignoreerrors': True,
+    'no_warnings': True,
+    'source_address': '0.0.0.0',
+}
+
 
         with yt_dlp.YoutubeDL(ytdl_opts) as ytdl:
             try:
