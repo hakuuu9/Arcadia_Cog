@@ -15,7 +15,7 @@ CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"
 CUSTOM_ROLE_COST = 150000
 
 # Role shop items
-ROLE_COST = 50000
+ROLE_COST = 30000
 ROLE_ITEMS = {
     "moss sprite": "<:mosssprite:1379352174718619738>",
     "enigma": "<:Enigma:1379352300300013618>",
