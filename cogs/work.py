@@ -45,16 +45,16 @@ class Work(commands.Cog):
         ]
 
     @commands.command(name='work')
-    @commands.cooldown(1, 10, commands.BucketType.user)  # 1 use every 10 sec per user
+    @commands.cooldown(1, 60, commands.BucketType.user)  # 1 use every 60 sec per user
     async def work_text(self, ctx):
         await self.handle_work(ctx.author, ctx)
 
-    @app_commands.command(name='work', description='Work to earn a small salary (10s cooldown)')
+    @app_commands.command(name='work', description='Work to earn a small salary (60s cooldown)')
     async def work_slash(self, interaction: discord.Interaction):
         await self.handle_work(interaction.user, interaction)
 
     async def handle_work(self, user, ctx_or_interaction):
-        salary = random.randint(1, 200)
+        salary = random.randint(1, 100)
 
         user_data = self.db.find_one({'_id': str(user.id)})
         balance = user_data['balance'] if user_data and 'balance' in user_data else 0
