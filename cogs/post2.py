@@ -6,21 +6,20 @@ class Post2(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Only allow members with Manage Messages
     def is_staff(self, interaction: discord.Interaction) -> bool:
         return interaction.user.guild_permissions.manage_messages
 
     @commands.hybrid_command(
         name="post2",
-        description="Send a message with optional embed, image, footer, and embed color."
+        description="Send a styled message or embed with optional image, footer, and color."
     )
     @app_commands.describe(
-        channel="Channel to send the message",
-        embed="Send as an embed?",
-        message="Main message content (supports mentions/emojis)",
-        image_url="Optional image URL (will appear in embed)",
-        footer_text="Optional footer text below image",
-        embed_color="Optional hex color (e.g., #ff5733)"
+        channel="Where to post the message",
+        embed="Send as embed?",
+        message="Message content (supports Discord formatting and emojis)",
+        image_url="Image URL (optional, for embed)",
+        footer_text="Footer text (optional)",
+        embed_color="Embed color in hex (optional, e.g. #ff0000)"
     )
     async def post2(
         self,
@@ -32,15 +31,17 @@ class Post2(commands.Cog):
         footer_text: str = None,
         embed_color: str = "#2f3136"
     ):
-        # Slash or prefix?
         interaction = getattr(ctx, "interaction", None)
-        if interaction and not self.is_staff(interaction):
-            return await ctx.send("❌ You do not have permission to use this command.", ephemeral=True)
 
-        if not interaction and not ctx.author.guild_permissions.manage_messages:
-            return await ctx.send("❌ You do not have permission to use this command.")
-
-        await ctx.defer(ephemeral=True) if interaction else None
+        # Permission check
+        if interaction:
+            if not self.is_staff(interaction):
+                return await interaction.response.send_message("❌ You lack permission to use this command.", ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
+        else:
+            if not ctx.author.guild_permissions.manage_messages:
+                return await ctx.send("❌ You lack permission to use this command.")
+            await ctx.typing()
 
         try:
             if embed:
@@ -59,17 +60,23 @@ class Post2(commands.Cog):
 
                 await channel.send(embed=em)
             else:
-                content = message
+                final_msg = message
                 if image_url:
-                    content += f"\n{image_url}"
-                await channel.send(content=content)
+                    final_msg += f"\n{image_url}"
+                await channel.send(content=final_msg)
 
-            confirmation = f"✅ Message sent to {channel.mention}."
-            await (ctx.send(confirmation, ephemeral=True) if interaction else ctx.send(confirmation))
+            success = f"✅ Message sent to {channel.mention}."
+            if interaction:
+                await interaction.followup.send(success, ephemeral=True)
+            else:
+                await ctx.send(success)
 
         except Exception as e:
-            error_msg = f"❌ Failed to send message: `{e}`"
-            await (ctx.send(error_msg, ephemeral=True) if interaction else ctx.send(error_msg))
+            error = f"❌ Failed to send message: `{e}`"
+            if interaction:
+                await interaction.followup.send(error, ephemeral=True)
+            else:
+                await ctx.send(error)
 
 async def setup(bot):
     await bot.add_cog(Post2(bot))
