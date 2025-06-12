@@ -2,14 +2,15 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-say_mod_id = 1347181345922748456  # Authorized user ID
+say_mod_role_id = 1347181345922748456  # Role ID of "Moderator"
 
 class Say(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     def is_authorized(self, interaction: discord.Interaction) -> bool:
-        return interaction.user.id == say_mod_id
+        # Check if the user has the Moderator role
+        return any(role.id == say_mod_role_id for role in interaction.user.roles)
 
     @app_commands.command(
         name="say",
