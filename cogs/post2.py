@@ -2,12 +2,17 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+POST2_ID = 1347181345922748456  # moderator role ID allowed to use post2
+
 class Post2(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     def is_staff(self, interaction: discord.Interaction) -> bool:
-        return interaction.user.guild_permissions.manage_messages
+        if interaction.guild is None:
+            return False
+        role = discord.utils.get(interaction.user.roles, id=POST2_ID)
+        return role is not None
 
     @app_commands.command(
         name="post2",
@@ -38,7 +43,6 @@ class Post2(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        # Replace `\n` with actual line breaks
         message = message.replace("\\n", "\n")
         if footer:
             footer = footer.replace("\\n", "\n")
@@ -71,7 +75,6 @@ class Post2(commands.Cog):
             )
 
     @commands.command(name="post2")
-    @commands.has_permissions(manage_messages=True)
     async def post2_prefix(
         self,
         ctx,
@@ -80,7 +83,10 @@ class Post2(commands.Cog):
         *,
         args: str
     ):
-        # Split args into message, image_url, footer, embed_color
+        role = discord.utils.get(ctx.author.roles, id=POST2_ID)
+        if role is None:
+            return await ctx.send("❌ You do not have permission to use this command.", delete_after=10)
+
         parts = args.split("|")
         message = parts[0].strip().replace("\\n", "\n")
         image_url = parts[1].strip() if len(parts) > 1 else None
