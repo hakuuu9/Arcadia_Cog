@@ -3,5 +3,4 @@ pymongo
 Flask
 aiohttp
 motor
-yt_dlp
-PyNaCl
+
