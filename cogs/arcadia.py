@@ -10,7 +10,7 @@ ARC_EMOJI = "🗡️"
 COIN_EMOJI = "🪙"
 PET_EMOJI = "🐾"
 
-HUNT_COOLDOWN = 30  # seconds
+HUNT_COOLDOWN = 20  # seconds
 
 # Pets with rarities and sell prices
 PETS = {
@@ -217,11 +217,11 @@ class Arcadia(commands.Cog):
     async def sellpet_slash(self, interaction: discord.Interaction, pet_name: str):
         await self.sell_pet(interaction, pet_name, is_slash=True)
 
-    @commands.command(name="leaderboard")
+    @commands.command(name="top")
     async def leaderboard_text(self, ctx):
         await self.leaderboard(ctx, is_slash=False)
 
-    @app_commands.command(name="leaderboard", description="Show top hunters by coins.")
+    @app_commands.command(name="top", description="Show top hunters by coins.")
     async def leaderboard_slash(self, interaction: discord.Interaction):
         await self.leaderboard(interaction, is_slash=True)
 
