@@ -31,7 +31,7 @@ class Confess(commands.Cog):
             description=message,
             color=discord.Color.purple()
         )
-        public_embed.set_footer(text="Submitted anonymously • Powered by Arcadia with love")
+        public_embed.set_footer(text="Use /confess <your message> to send an anonymous confession to this channel.")
 
         log_embed = discord.Embed(
             title=f"Confession #{count} Logged",
