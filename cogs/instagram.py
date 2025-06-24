@@ -2,7 +2,9 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import requests
-import re
+
+API_HOST = "instagram-data1.p.rapidapi.com"  # or the specific host name from InstaAPI
+API_KEY = "67c341f875msh6ddbc8d8e2d3dc6p183b1fjsncb663d7a8ce8"
 
 class Instagram(commands.Cog):
     def __init__(self, bot):
@@ -12,7 +14,7 @@ class Instagram(commands.Cog):
     async def instagram_text(self, ctx, username: str):
         await self.send_profile(ctx, username)
 
-    @app_commands.command(name="instagram", description="View basic Instagram profile info by username")
+    @app_commands.command(name="instagram", description="View public Instagram profile info")
     @app_commands.describe(username="Instagram username (without @)")
     async def instagram_slash(self, interaction: discord.Interaction, username: str):
         await self.send_profile(interaction, username)
@@ -21,58 +23,57 @@ class Instagram(commands.Cog):
         if isinstance(ctx_or_interaction, discord.Interaction):
             await ctx_or_interaction.response.defer()
 
-        url = f"https://www.instagram.com/{username}/"
+        url = f"https://{API_HOST}/user/profile/{username}"
         headers = {
-            "User-Agent": "Mozilla/5.0"
+            "X-RapidAPI-Host": API_HOST,
+            "X-RapidAPI-Key": API_KEY
         }
 
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code != 200:
-                raise Exception("Profile not found or private.")
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            msg = f"❌ Could not fetch @{username}: HTTP {resp.status_code}"
+            await self._send_message(ctx_or_interaction, msg)
+            return
 
-            html = response.text
+        data = resp.json()
+        if not data.get("success"):
+            msg = f"❌ Failed to fetch @{username}: {data.get('message','Unknown error')}"
+            await self._send_message(ctx_or_interaction, msg)
+            return
 
-            name = re.search(r'"full_name":"(.*?)"', html)
-            bio = re.search(r'"biography":"(.*?)"', html)
-            followers = re.search(r'"edge_followed_by":{"count":(\d+)}', html)
-            following = re.search(r'"edge_follow":{"count":(\d+)}', html)
-            posts = re.search(r'"edge_owner_to_timeline_media":{"count":(\d+)}', html)
-            profile_pic = re.search(r'"profile_pic_url_hd":"(.*?)"', html)
+        user = data["data"]
+        embed = discord.Embed(
+            title=f"@{username} on Instagram",
+            url=f"https://instagram.com/{username}",
+            description=user.get("biography", ""),
+            color=discord.Color.dark_purple()
+        )
+        embed.set_thumbnail(url=user.get("profile_pic_url"))
+        embed.add_field(name="Name", value=user.get("full_name","—"), inline=True)
+        embed.add_field(name="Followers", value=f"{user.get('follower_count',0):,}", inline=True)
+        embed.add_field(name="Following", value=f"{user.get('following_count',0):,}", inline=True)
+        embed.add_field(name="Posts", value=f"{user.get('posts',0):,}", inline=True)
+        embed.set_footer(text=f"Requested by {(ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author)}")
 
-            if not name:
-                raise Exception("Could not parse profile info.")
+        await self._send_embed(ctx_or_interaction, embed)
 
-            embed = discord.Embed(
-                title=f"@{username} on Instagram",
-                url=url,
-                color=discord.Color.dark_purple(),
-                description=bio.group(1).encode().decode('unicode_escape') if bio else ""
-            )
-            embed.set_thumbnail(url=profile_pic.group(1).replace("\\u0026", "&") if profile_pic else "")
-            embed.add_field(name="Name", value=name.group(1), inline=True)
-            embed.add_field(name="Followers", value=f"{int(followers.group(1)):,}" if followers else "N/A", inline=True)
-            embed.add_field(name="Following", value=f"{int(following.group(1)):,}" if following else "N/A", inline=True)
-            embed.add_field(name="Posts", value=f"{int(posts.group(1)):,}" if posts else "N/A", inline=True)
-            embed.set_footer(text=f"Requested by {(ctx_or_interaction.user if isinstance(ctx_or_interaction, discord.Interaction) else ctx_or_interaction.author)}")
-
-            if isinstance(ctx_or_interaction, commands.Context):
-                await ctx_or_interaction.send(embed=embed)
+    async def _send_message(self, ctx_or_interaction, message: str):
+        if isinstance(ctx_or_interaction, commands.Context):
+            await ctx_or_interaction.send(message)
+        else:
+            if ctx_or_interaction.response.is_done():
+                await ctx_or_interaction.followup.send(message)
             else:
-                if ctx_or_interaction.response.is_done():
-                    await ctx_or_interaction.followup.send(embed=embed)
-                else:
-                    await ctx_or_interaction.response.send_message(embed=embed)
+                await ctx_or_interaction.response.send_message(message)
 
-        except Exception as e:
-            message = f"❌ Failed to fetch @{username}: {e}"
-            if isinstance(ctx_or_interaction, commands.Context):
-                await ctx_or_interaction.send(message)
+    async def _send_embed(self, ctx_or_interaction, embed: discord.Embed):
+        if isinstance(ctx_or_interaction, commands.Context):
+            await ctx_or_interaction.send(embed=embed)
+        else:
+            if ctx_or_interaction.response.is_done():
+                await ctx_or_interaction.followup.send(embed=embed)
             else:
-                if ctx_or_interaction.response.is_done():
-                    await ctx_or_interaction.followup.send(message)
-                else:
-                    await ctx_or_interaction.response.send_message(message)
+                await ctx_or_interaction.response.send_message(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Instagram(bot))
