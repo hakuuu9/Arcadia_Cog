@@ -15,11 +15,11 @@ CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"
 CUSTOM_ROLE_COST = 150000
 
 # Role shop items
-ROLE_COST = 30000
+ROLE_COST = 20000
 ROLE_ITEMS = {
     "sootkeeper": "<:Sootkeeper:1387075130424819896>",
-    "enigma": "<:Enigma:1379352300300013618>",
-    "elderleaf": "<:elderleaf:1379352378771509268>",
+    "sukuna": "<:sukuna:1387076899733508189>",
+    "snorlax": "<:Snorlax:1387079085682987019>",
     "solace": "<:solace:1379352464624713758>",
     "sleepyhead": "<:sleepyhead:1379352570467844238>",
     "adytum": "<:adytum:1379352696145842306>",
