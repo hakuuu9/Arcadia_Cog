@@ -14,7 +14,7 @@ class Daily(commands.Cog):
     async def daily_text(self, ctx):
         await self.handle_daily(ctx.author, ctx)
 
-    @app_commands.command(name='daily', description='Claim your daily reward (₱500 every 24h)')
+    @app_commands.command(name='daily', description='Claim your daily reward (₱1000 every 24h)')
     async def daily_slash(self, interaction: discord.Interaction):
         await self.handle_daily(interaction.user, interaction)
 
@@ -22,7 +22,7 @@ class Daily(commands.Cog):
         now = datetime.utcnow()
         user_data = self.db.find_one({'_id': str(user.id)})
 
-        amount = 500
+        amount = 1000
         emoji = "<:arcadiacoin:1378656679704395796>"
 
         if user_data and 'last_claim' in user_data:
