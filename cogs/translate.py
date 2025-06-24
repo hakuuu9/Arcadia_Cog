@@ -2,54 +2,62 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import requests
-import asyncio
 
 class Translate(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.tagalog_to_english = {
+            "kamusta": "how are you",
+            "kamusta ka": "how are you",
+            "kamusta kana": "how are you",
+            "mahal kita": "i love you",
+            "anong ginagawa mo": "what are you doing",
+            "nasaan ka": "where are you",
+            "wala lang": "nothing",
+            "tara na": "let's go",
+            "ingat ka": "take care",
+        }
 
-    async def translate_text(self, text: str):
+    async def fallback_api(self, text):
         try:
             params = {
                 "q": text,
                 "langpair": "auto|en"
             }
-            response = requests.get("https://api.mymemory.translated.net/get", params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            translated = data["responseData"]["translatedText"]
-            return translated
-        except Exception as e:
-            print("Translation error:", e)
-            return "❌ Sorry, I couldn't translate that."
+            r = requests.get("https://api.mymemory.translated.net/get", params=params, timeout=10)
+            data = r.json()
+            return data["responseData"]["translatedText"]
+        except Exception:
+            return "❌ I couldn’t translate that."
 
     @commands.command(name="translate")
     async def translate_command(self, ctx, *, text: str):
-        if not text:
-            await ctx.send("❌ Please provide text to translate. Usage: `!translate <text>`")
-            return
-        msg = await ctx.send("🌐 Translating...")
-        translated = await self.translate_text(text)
+        lower = text.lower()
+        translated = self.tagalog_to_english.get(lower)
+        if not translated:
+            translated = await self.fallback_api(text)
         embed = discord.Embed(
-            title="🌍 Translated to English",
+            title="🌍 Translation",
             description=translated,
             color=discord.Color.blue()
         )
         embed.set_footer(text=f"Requested by {ctx.author}")
-        await msg.edit(content=None, embed=embed)
+        await ctx.send(embed=embed)
 
-    @app_commands.command(name="translate", description="Translate text to English (auto detect)")
+    @app_commands.command(name="translate", description="Translate Tagalog or auto-detect to English")
     @app_commands.describe(text="Text to translate")
     async def translate_slash(self, interaction: discord.Interaction, text: str):
-        await interaction.response.send_message("🌐 Translating...")
-        translated = await self.translate_text(text)
+        lower = text.lower()
+        translated = self.tagalog_to_english.get(lower)
+        if not translated:
+            translated = await self.fallback_api(text)
         embed = discord.Embed(
-            title="🌍 Translated to English",
+            title="🌍 Translation",
             description=translated,
             color=discord.Color.blue()
         )
         embed.set_footer(text=f"Requested by {interaction.user}")
-        await interaction.edit_original_response(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Translate(bot))
