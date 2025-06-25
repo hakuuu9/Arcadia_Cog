@@ -9,6 +9,7 @@ class FYP(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="fyp", description="Get a random TikTok video you can watch inside Discord!")
+    @commands.cooldown(rate=1, per=15, type=commands.BucketType.user)  # 1 use per 15 seconds per user
     async def fyp_slash(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
@@ -31,7 +32,26 @@ class FYP(commands.Cog):
         username = video.get("author", {}).get("username", "tiktok")
         tiktok_url = f"https://www.tiktok.com/@{username}/video/{video_id}"
 
-        await interaction.followup.send(tiktok_url)
+        embed = discord.Embed(
+            title="Here's your TikTok video!",
+            url=tiktok_url,
+            color=discord.Color.black()
+        )
+        embed.set_author(name=f"@{username}")
+        embed.description = f"[Watch the video here]({tiktok_url})"
+
+        await interaction.followup.send(embed=embed)
+
+    # Optional: handle cooldown error to give user feedback
+    @fyp_slash.error
+    async def fyp_slash_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            await interaction.response.send_message(
+                f"⏳ Please wait {error.retry_after:.1f} seconds before using this command again.",
+                ephemeral=True
+            )
+        else:
+            raise error
 
 async def setup(bot):
     await bot.add_cog(FYP(bot))
