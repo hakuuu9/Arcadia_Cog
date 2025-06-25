@@ -3,16 +3,16 @@ from discord.ext import commands
 from discord import app_commands
 import random
 from pymongo import MongoClient
-from config import MONGO_URL  # Your mongo URL here
+from config import MONGO_URL
 
 class Blackjack(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db = MongoClient(MONGO_URL).hxhbot.users
+        self.active_games = {}  # Track ongoing games per user
 
     def draw_card(self):
-        cards = [2,3,4,5,6,7,8,9,10,10,10,10,11]
-        return random.choice(cards)
+        return random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11])
 
     def calculate_score(self, hand):
         score = sum(hand)
@@ -51,8 +51,12 @@ class Blackjack(commands.Cog):
         await self.start_blackjack(interaction, interaction.user, bet)
 
     async def start_blackjack(self, ctx_or_interaction, user, bet):
-        balance = await self.get_balance(user.id)
         emoji = "<:arcadiacoin:1378656679704395796>"
+
+        if user.id in self.active_games:
+            return await self.send_message(ctx_or_interaction, "❌ You already have an ongoing Blackjack game.")
+
+        balance = await self.get_balance(user.id)
 
         if bet <= 0:
             return await self.send_message(ctx_or_interaction, "❌ Bet must be greater than zero.")
@@ -78,13 +82,15 @@ class Blackjack(commands.Cog):
         view = BlackjackView(user, game, self.bot)
         message = await self.send_message(ctx_or_interaction, embed=embed, view=view)
         view.message = message
+        self.active_games[user.id] = view
 
     async def send_message(self, ctx_or_interaction, content=None, embed=None, view=None):
         if isinstance(ctx_or_interaction, commands.Context):
             return await ctx_or_interaction.send(content=content, embed=embed, view=view)
         else:
-            await ctx_or_interaction.response.defer()
-            return await ctx_or_interaction.followup.send(content=content, embed=embed, view=view)
+            if not ctx_or_interaction.response.is_done():
+                await ctx_or_interaction.response.defer()
+            return await ctx_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=False)
 
 class BlackjackView(discord.ui.View):
     def __init__(self, user, game, bot, timeout=60):
@@ -118,11 +124,11 @@ class BlackjackView(discord.ui.View):
 
     async def update_message(self, interaction: discord.Interaction):
         embed = self.game['embed_func'](self.game['player'], self.game['dealer'], reveal_dealer=False)
-        if not self.responded:
+        try:
             await interaction.response.edit_message(embed=embed, view=self)
-            self.responded = True
-        else:
-            await interaction.followup.edit_message(self.message.id, embed=embed, view=self)
+        except discord.InteractionResponded:
+            await self.message.edit(embed=embed, view=self)
+        self.responded = True
 
     async def finish_game(self, interaction: discord.Interaction, bust: bool):
         dealer_hand = self.game['dealer']
@@ -156,11 +162,13 @@ class BlackjackView(discord.ui.View):
         final_embed = embed_func(player_hand, dealer_hand, reveal_dealer=True)
         final_embed.add_field(name="Result", value=result, inline=False)
 
-        if not self.responded:
+        try:
             await interaction.response.edit_message(embed=final_embed, view=None)
-            self.responded = True
-        else:
-            await interaction.followup.edit_message(self.message.id, embed=final_embed, view=None)
+        except discord.InteractionResponded:
+            await self.message.edit(embed=final_embed, view=None)
+
+        self.bot.get_cog("Blackjack").active_games.pop(user_id, None)
+        self.responded = True
 
     async def on_timeout(self):
         for child in self.children:
@@ -170,6 +178,7 @@ class BlackjackView(discord.ui.View):
                 await self.message.edit(view=self)
             except:
                 pass
+        self.bot.get_cog("Blackjack").active_games.pop(self.user.id, None)
 
 async def setup(bot):
     await bot.add_cog(Blackjack(bot))
