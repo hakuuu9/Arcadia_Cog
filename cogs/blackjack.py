@@ -45,6 +45,7 @@ class Blackjack(commands.Cog):
         return user_data['balance'] if user_data and 'balance' in user_data else 0
 
     async def update_balance(self, user_id, amount):
+        print(f"[Balance Update] User {user_id}: {'+' if amount > 0 else ''}{amount}")
         self.db.update_one({'_id': str(user_id)}, {'$inc': {'balance': amount}}, upsert=True)
 
     @commands.command(name='blackjack')
@@ -156,10 +157,10 @@ class BlackjackView(discord.ui.View):
             result = f"💥 You busted with **{player_score}**.\n**Dealer wins!**\nYou lost ₱{bet:,} {emoji}."
         elif dealer_score > 21 or player_score > dealer_score:
             result = f"🎉 **You win!**\nYou earned ₱{bet * 2:,} {emoji}!"
-            db.update_one({'_id': str(user_id)}, {'$inc': {'balance': bet * 2}}, upsert=True)
+            await db.update_one({'_id': str(user_id)}, {'$inc': {'balance': bet * 2}}, upsert=True)
         elif player_score == dealer_score:
             result = f"🤝 It's a tie!\nYou got back ₱{bet:,} {emoji}."
-            db.update_one({'_id': str(user_id)}, {'$inc': {'balance': bet}}, upsert=True)
+            await db.update_one({'_id': str(user_id)}, {'$inc': {'balance': bet}}, upsert=True)
         else:
             result = f"❌ Dealer wins with **{dealer_score}**.\nYou lost ₱{bet:,} {emoji}."
 
