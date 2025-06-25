@@ -1,20 +1,22 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import requests
 import json
 from config import TOGETHER_API_KEY
 
-class AskTogether(commands.Cog):
+class AskTogetherSlash(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name='ask')
-    @commands.cooldown(1, 15, commands.BucketType.user)
-    async def ask(self, ctx, *, question: str):
+    @app_commands.command(name="ask", description="Ask the AI anything!")
+    @app_commands.describe(question="Your question to the AI")
+    async def ask(self, interaction: discord.Interaction, question: str):
         if len(question) > 300:
-            return await ctx.send("❌ Please keep your question under 300 characters.")
+            await interaction.response.send_message("❌ Please keep your question under 300 characters.", ephemeral=True)
+            return
 
-        await ctx.typing()
+        await interaction.response.defer(thinking=True)
 
         headers = {
             "Authorization": f"Bearer {TOGETHER_API_KEY}",
@@ -24,7 +26,7 @@ class AskTogether(commands.Cog):
         data = {
             "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": "You are a helpful and friendly assistant."},
                 {"role": "user", "content": question}
             ],
             "max_tokens": 300,
@@ -34,23 +36,17 @@ class AskTogether(commands.Cog):
         response = requests.post("https://api.together.xyz/v1/chat/completions", headers=headers, data=json.dumps(data))
 
         if response.status_code == 200:
-            reply = response.json()['choices'][0]['message']['content']
-            embed = discord.Embed(
-                title="🤖 AI says:",
-                description=reply,
-                color=discord.Color.green()
-            )
-            embed.set_footer(text=f"Asked by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
-            await ctx.reply(embed=embed)
-        else:
-            await ctx.send(f"⚠️ API Error: {response.status_code} — {response.text}")
+            reply = response.json()['choices'][0]['message']['content'].strip()
 
-    @ask.error
-    async def ask_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"⏳ Cooldown: Try again in {round(error.retry_after, 1)} seconds.")
+            embed = discord.Embed(
+                title="🗣️ Arcadia Says:",
+                description=f"✨ {reply}",
+                color=discord.Color.dark_grey()
+            )
+            embed.set_footer(text=f"Asked by {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
+            await interaction.followup.send(embed=embed)
         else:
-            await ctx.send("⚠️ An unexpected error occurred.")
+            await interaction.followup.send(f"⚠️ API Error: {response.status_code} — {response.text}", ephemeral=True)
 
 async def setup(bot):
-    await bot.add_cog(AskTogether(bot))
+    await bot.add_cog(AskTogetherSlash(bot))
