@@ -35,7 +35,7 @@ class FYP(commands.Cog):
         embed = discord.Embed(
             title="Here's your TikTok video!",
             url=tiktok_url,
-            color=discord.Color.black()
+            color=discord.Colour.black()
         )
         embed.set_author(name=f"@{username}")
         embed.description = f"[Watch the video here]({tiktok_url})"
