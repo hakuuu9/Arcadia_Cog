@@ -9,7 +9,7 @@ from config import MONGO_URL # Assuming config.py is in the same directory
 
 # Configuration for rob amounts and cooldown
 ROB_COOLDOWN_HOURS = 24 # 1 day cooldown
-MAX_ROB_AMOUNT = 200
+MAX_ROB_AMOUNT = 5000
 MIN_ROB_AMOUNT = 1
 
 # Custom rob emoji
