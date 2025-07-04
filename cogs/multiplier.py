@@ -8,9 +8,9 @@ from config import MONGO_URL
 class EconomyMultiplier(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = MongoClient(MONGO_URL).hxhbot.users
-        self.mult_db = MongoClient(MONGO_URL).hxhbot.multipliers
-
+        self.client = MongoClient(MONGO_URL)
+        self.db = self.client.hxhbot.users
+        self.mult_db = self.client.hxhbot.multipliers
         self._cooldowns = {}  # user_id: last_coin_time
 
     # Passive earning with cooldown and multiplier only if set
@@ -25,9 +25,12 @@ class EconomyMultiplier(commands.Cog):
 
         last_earn = self._cooldowns.get(user_id, 0)
         if now - last_earn < cooldown:
-            return  # still cooling down
+            print(f"[Cooldown] {message.author} still cooling down ({now - last_earn:.1f}/{cooldown}s)")
+            return
 
         multiplier = await self.get_user_multiplier(message)
+        print(f"[DEBUG] {message.author} | Multiplier: {multiplier} | Cooldown Ready")
+
         if multiplier == 1:
             return  # no multiplier set, do not give coins
 
@@ -42,10 +45,12 @@ class EconomyMultiplier(commands.Cog):
     async def get_user_multiplier(self, message):
         multiplier = 1
 
+        # Check channel multiplier
         channel_data = self.mult_db.find_one({'_id': str(message.channel.id)})
         if channel_data and channel_data.get('multiplier', 1) > multiplier:
             multiplier = channel_data['multiplier']
 
+        # Check role multipliers
         for role in message.author.roles:
             role_data = self.mult_db.find_one({'_id': str(role.id)})
             if role_data and role_data.get('multiplier', 1) > multiplier:
@@ -179,7 +184,7 @@ class EconomyMultiplier(commands.Cog):
             lines.append(f"{name}: x{multiplier}")
 
         message = "**📊 Current Coin Multipliers:**\n" + "\n".join(lines)
-        await interaction.response.send_message(message)  # public response
+        await interaction.response.send_message(message)
 
     @app_commands.command(name="multiremove", description="Remove coin multiplier for a channel or role (admin only).")
     @app_commands.checks.has_permissions(administrator=True)
