@@ -18,11 +18,11 @@ CUSTOM_ROLE_COST = 150000
 ROLE_COST = 20000
 ROLE_ITEMS = {
     "sootkeeper": "<:Sootkeeper:1387075130424819896>",
-    "sukuna": "<:sukuna:1387076899733508189>",
+    "sorcerer": "<:sorcerer:1390523971778248704>",
     "snorlax": "<:Snorlax:1387079085682987019>",
-    "solace": "<:solace:1379352464624713758>",
+    "fallen": "<:Fallen:1390524293342953514>",
     "sleepyhead": "<:sleepyhead:1379352570467844238>",
-    "adytum": "<:adytum:1379352696145842306>",
+    "lovebug": "<:lovebug:1390524144038318191>",
 }
 
 STAFF_CHANNEL_ID = 1357656511974871202
