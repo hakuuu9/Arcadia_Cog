@@ -55,7 +55,7 @@ class Shop(commands.Cog):
             ),
             color=discord.Color.dark_red()
         )
-        embed.set_thumbnail(url="https://i.imgur.com/JxsCfCe.gif")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1370401173017722922/1370404097987182763/IMG_0702.gif")
         embed.set_footer(text="🕶️ Welcome to the underworld of Arcadia.")
         await interaction.response.send_message(embed=embed)
 
