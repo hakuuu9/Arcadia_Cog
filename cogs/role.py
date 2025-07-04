@@ -48,7 +48,7 @@ class RoleManager(commands.Cog):
             color=discord.Color.blurple(),
             timestamp=discord.utils.utcnow()
         )
-        embed.set_thumbnail(url="https://i.imgur.com/JxsCfCe.gif")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1370401173017722922/1370404097987182763/IMG_0702.gif")
         embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
 
         if role in member.roles:
