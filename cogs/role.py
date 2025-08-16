@@ -1,28 +1,20 @@
+import discord
 from discord import app_commands
 from discord.ext import commands
-import discord
 
 class RoleManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    STAFF_ROLE_NAME = "Moderator"
-    STAFF_ROLE_ID = 1347181345922748456
+    # Replace with the actual ID for the role that can use this command
+    ROLE_ROLES_ID = 1347181345922748456
     LOG_CHANNEL_ID = 1364839238960549908
 
     @commands.hybrid_command(name="role", description="Grant or revoke a role from a member.")
     @app_commands.describe(member="The member to give/revoke the role to/from", role_input="The role (name, ID, or mention)")
-    async def role(self, ctx: commands.Context, member: discord.Member = None, *, role_input: str = None):
-        staff_role = discord.utils.get(ctx.guild.roles, id=self.STAFF_ROLE_ID)
-
-        if not staff_role or staff_role.id != self.STAFF_ROLE_ID:
-            await ctx.send("❌ You don't have the required staff role.")
-            return
-
-        if staff_role not in ctx.author.roles:
-            await ctx.send("❌ You don't have permission to use this command.")
-            return
-
+    @commands.has_role(ROLE_ROLES_ID)
+    async def role(self, ctx: commands.Context, member: discord.Member, *, role_input: str):
+        # We can remove the manual role checks because the decorator handles it.
         if not member or not role_input:
             await ctx.send("Usage: `/role @member rolename/roleid` or `$role @member rolename/roleid`")
             return
@@ -32,8 +24,11 @@ class RoleManager(commands.Cog):
         if role_input.isdigit():
             role = ctx.guild.get_role(int(role_input))
         elif role_input.startswith("<@&") and role_input.endswith(">"):
-            role_id = int(role_input[3:-1])
-            role = ctx.guild.get_role(role_id)
+            try:
+                role_id = int(role_input[3:-1])
+                role = ctx.guild.get_role(role_id)
+            except (ValueError, IndexError):
+                pass  # Handle cases where the mention format is invalid
         else:
             role = discord.utils.find(lambda r: r.name.lower() == role_input.lower(), ctx.guild.roles)
 
@@ -72,5 +67,16 @@ class RoleManager(commands.Cog):
         if log_channel:
             await log_channel.send(embed=embed)
 
+    @role.error
+    async def role_error(self, ctx, error):
+        if isinstance(error, commands.MissingRole) or isinstance(error, app_commands.MissingRole):
+            await ctx.send("❌ You do not have the required role to use this command.")
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send("❌ Invalid member or role provided.")
+        else:
+            await ctx.send("An error occurred while trying to manage roles.")
+
 async def setup(bot):
     await bot.add_cog(RoleManager(bot))
+
+---
