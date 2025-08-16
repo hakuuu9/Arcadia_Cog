@@ -14,7 +14,6 @@ class RoleManager(commands.Cog):
     @app_commands.describe(member="The member to give/revoke the role to/from", role_input="The role (name, ID, or mention)")
     @commands.has_role(ROLE_ROLES_ID)
     async def role(self, ctx: commands.Context, member: discord.Member, *, role_input: str):
-        # We can remove the manual role checks because the decorator handles it.
         if not member or not role_input:
             await ctx.send("Usage: `/role @member rolename/roleid` or `$role @member rolename/roleid`")
             return
@@ -28,7 +27,7 @@ class RoleManager(commands.Cog):
                 role_id = int(role_input[3:-1])
                 role = ctx.guild.get_role(role_id)
             except (ValueError, IndexError):
-                pass  # Handle cases where the mention format is invalid
+                pass
         else:
             role = discord.utils.find(lambda r: r.name.lower() == role_input.lower(), ctx.guild.roles)
 
@@ -69,14 +68,13 @@ class RoleManager(commands.Cog):
 
     @role.error
     async def role_error(self, ctx, error):
-        if isinstance(error, commands.MissingRole) or isinstance(error, app_commands.MissingRole):
+        if isinstance(error, commands.MissingRole):
             await ctx.send("❌ You do not have the required role to use this command.")
         elif isinstance(error, commands.BadArgument):
             await ctx.send("❌ Invalid member or role provided.")
         else:
+            print(f"An unhandled error occurred: {error}")
             await ctx.send("An error occurred while trying to manage roles.")
 
 async def setup(bot):
     await bot.add_cog(RoleManager(bot))
-
----
