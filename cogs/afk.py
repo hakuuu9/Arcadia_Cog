@@ -31,55 +31,72 @@ class AFK(commands.Cog):
 
         return ", ".join(parts) if parts else "a few seconds"
 
-    async def _handle_afk_set(self, user: discord.Member, reason: str, send_response_func):
-        """A core function to handle the AFK status setting logic for both command types."""
-        user_id = str(user.id)
-        current_time = datetime.utcnow()
-
-        self.db.update_one(
-            {"_id": user_id},
-            {"$set": {"afk": {"reason": reason, "time": current_time}}},
-            upsert=True
-        )
-
-        # AFK Set Message as per your requested format
+    def _create_afk_embed(self, user: discord.Member, reason: str = None) -> discord.Embed:
+        """Creates the AFK status embed."""
         afk_message = f"<:hii:{AFK_EMOJI_ID}> You are now in **AFK!**\n"
         if reason:
             afk_message += f"Reason: **{reason}**"
 
-        embed = discord.Embed(
+        return discord.Embed(
             description=afk_message,
             color=EMBED_COLOR
         )
-        await send_response_func(embed=embed)
 
-        try:
-            if user.guild.me.guild_permissions.manage_nicknames and user.top_role.position < user.guild.me.top_role.position:
-                if not user.nick or not user.nick.startswith("[AFK]"):
-                    original_nick = user.nick if user.nick else user.name
-                    await user.edit(nick=f"[AFK] {original_nick}")
-        except Exception as e:
-            print(f"Nickname error for {user.display_name}: {e}")
+    def _create_return_embed(self, user: discord.Member, afk_time: datetime) -> discord.Embed:
+        """Creates the welcome back embed."""
+        duration = datetime.utcnow() - afk_time
+        formatted_duration = self.format_duration(duration)
+        
+        end_message = f"<:hii:{AFK_EMOJI_ID}> Welcome back, **{user.display_name}**! You were last seen **{formatted_duration}** ago."
+        
+        return discord.Embed(
+            description=end_message,
+            color=EMBED_COLOR
+        )
 
     @app_commands.command(name="afk", description="Set yourself as AFK with an optional reason.")
     @app_commands.describe(reason="The reason for being AFK (optional).")
     async def afk_slash(self, interaction: discord.Interaction, reason: str = None):
         """Handles the slash command version of the AFK command."""
         await interaction.response.defer()
-        await self._handle_afk_set(
-            user=interaction.user,
-            reason=reason,
-            send_response_func=interaction.followup.send
+        
+        self.db.update_one(
+            {"_id": str(interaction.user.id)},
+            {"$set": {"afk": {"reason": reason, "time": datetime.utcnow()}}},
+            upsert=True
         )
+
+        embed = self._create_afk_embed(interaction.user, reason)
+        await interaction.followup.send(embed=embed)
+
+        try:
+            if interaction.user.guild.me.guild_permissions.manage_nicknames and interaction.user.top_role.position < interaction.user.guild.me.top_role.position:
+                if not interaction.user.nick or not interaction.user.nick.startswith("[AFK]"):
+                    original_nick = interaction.user.nick if interaction.user.nick else interaction.user.name
+                    await interaction.user.edit(nick=f"[AFK] {original_nick}")
+        except Exception as e:
+            print(f"Nickname error for {interaction.user.display_name}: {e}")
+
 
     @commands.command(name="afk", help="Set yourself as AFK with an optional reason. Usage: $afk [reason]")
     async def afk_prefix(self, ctx: commands.Context, *, reason: str = None):
         """Handles the prefix command version of the AFK command."""
-        await self._handle_afk_set(
-            user=ctx.author,
-            reason=reason,
-            send_response_func=ctx.send
+        self.db.update_one(
+            {"_id": str(ctx.author.id)},
+            {"$set": {"afk": {"reason": reason, "time": datetime.utcnow()}}},
+            upsert=True
         )
+        
+        embed = self._create_afk_embed(ctx.author, reason)
+        await ctx.send(embed=embed)
+
+        try:
+            if ctx.author.guild.me.guild_permissions.manage_nicknames and ctx.author.top_role.position < ctx.author.guild.me.top_role.position:
+                if not ctx.author.nick or not ctx.author.nick.startswith("[AFK]"):
+                    original_nick = ctx.author.nick if ctx.author.nick else ctx.author.name
+                    await ctx.author.edit(nick=f"[AFK] {original_nick}")
+        except Exception as e:
+            print(f"Nickname error for {ctx.author.display_name}: {e}")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -101,16 +118,7 @@ class AFK(commands.Cog):
             except Exception as e:
                 print(f"Failed to reset nickname: {e}")
 
-            afk_time = user_data["afk"]["time"]
-            duration = datetime.utcnow() - afk_time
-            formatted_duration = self.format_duration(duration)
-
-            # AFK End Message as per your requested format
-            end_message = f"<:hii:{AFK_EMOJI_ID}> Welcome back, **{message.author.display_name}**! You were last seen **{formatted_duration}** ago."
-            embed = discord.Embed(
-                description=end_message,
-                color=EMBED_COLOR
-            )
+            embed = self._create_return_embed(message.author, user_data["afk"]["time"])
             await message.channel.send(embed=embed)
 
         # Check for mentions of AFK users
@@ -124,7 +132,6 @@ class AFK(commands.Cog):
                 reason = afk_data["afk"]["reason"]
                 afk_time = afk_data["afk"]["time"]
 
-                # Mention AFK User Message
                 response = f"{member.mention} is currently **AFK!**\n"
                 if reason:
                     response += f"With reason: **{reason}**\n"
