@@ -31,26 +31,6 @@ class AFK(commands.Cog):
 
         return ", ".join(parts) if parts else "a few seconds"
 
-    async def _send_afk_embed(self, interaction: discord.Interaction, user: discord.Member, reason: str = None):
-        """Helper function to send the AFK embed."""
-        current_time = datetime.utcnow()
-        self.db.update_one(
-            {"_id": str(user.id)},
-            {"$set": {"afk": {"reason": reason, "time": current_time}}},
-            upsert=True
-        )
-
-        embed = discord.Embed(
-            description=f"<:hii:{AFK_EMOJI_ID}> You are now in **AFK!**",
-            color=EMBED_COLOR
-        )
-        if reason:
-            embed.add_field(name="Reason", value=reason, inline=False)
-        embed.set_footer(text=f"I'll let people know when they mention you. Since: ")
-        embed.timestamp = current_time
-
-        await interaction.response.send_message(embed=embed)
-        
     async def _handle_afk_set(self, user: discord.Member, reason: str, send_response_func):
         """A core function to handle the AFK status setting logic for both command types."""
         user_id = str(user.id)
@@ -62,15 +42,15 @@ class AFK(commands.Cog):
             upsert=True
         )
 
+        # AFK Set Message as per your requested format
+        afk_message = f"<:hii:{AFK_EMOJI_ID}> You are now in **AFK!**\n"
+        if reason:
+            afk_message += f"Reason: **{reason}**"
+
         embed = discord.Embed(
-            description=f"<:hii:{AFK_EMOJI_ID}> You are now in **AFK!**",
+            description=afk_message,
             color=EMBED_COLOR
         )
-        if reason:
-            embed.add_field(name="Reason", value=f"**{reason}**", inline=False)
-        embed.set_footer(text=f"I'll let people know when they mention you.")
-        embed.timestamp = current_time
-
         await send_response_func(embed=embed)
 
         try:
@@ -125,8 +105,10 @@ class AFK(commands.Cog):
             duration = datetime.utcnow() - afk_time
             formatted_duration = self.format_duration(duration)
 
+            # AFK End Message as per your requested format
+            end_message = f"<:hii:{AFK_EMOJI_ID}> Welcome back, **{message.author.display_name}**! You were last seen **{formatted_duration}** ago."
             embed = discord.Embed(
-                description=f"<:hii:{AFK_EMOJI_ID}> Welcome back, **{message.author.display_name}**! You were last seen **{formatted_duration}** ago.",
+                description=end_message,
                 color=EMBED_COLOR
             )
             await message.channel.send(embed=embed)
@@ -142,15 +124,17 @@ class AFK(commands.Cog):
                 reason = afk_data["afk"]["reason"]
                 afk_time = afk_data["afk"]["time"]
 
+                # Mention AFK User Message
+                response = f"{member.mention} is currently **AFK!**\n"
+                if reason:
+                    response += f"With reason: **{reason}**\n"
+                response += f"Since: <t:{int(afk_time.timestamp())}:R>"
+                
                 embed = discord.Embed(
-                    description=f"{member.mention} is currently **AFK!**",
+                    description=response,
                     color=EMBED_COLOR
                 )
-                if reason:
-                    embed.add_field(name="Reason", value=f"**{reason}**", inline=False)
-                embed.set_footer(text="Since:")
-                embed.timestamp = afk_time
-
+                
                 await message.channel.send(embed=embed)
                 afk_mentioned.add(member.id)
                 break  # Respond only once
