@@ -17,11 +17,10 @@ class Post3(commands.Cog):
     # ========== SLASH COMMAND ==========
     @app_commands.command(
         name="post3",
-        description="Post a simple embed with text, image, and optional color."
+        description="Post an embed with only an image and optional color."
     )
     @app_commands.describe(
         channel="Channel to send the embed",
-        message="Embed text (use \\n for line breaks)",
         image_url="Image URL to show inside the embed",
         embed_color="Hex color for embed (optional, e.g., #ff0000)"
     )
@@ -29,7 +28,6 @@ class Post3(commands.Cog):
         self,
         interaction: discord.Interaction,
         channel: discord.TextChannel,
-        message: str,
         image_url: str,
         embed_color: str = "#2f3136"
     ):
@@ -40,23 +38,22 @@ class Post3(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        message = message.replace("\\n", "\n")
         try:
             try:
                 color = discord.Color.from_str(embed_color)
             except ValueError:
                 color = discord.Color.dark_gray()
 
-            em = discord.Embed(description=message, color=color)
+            em = discord.Embed(color=color)
             em.set_image(url=image_url)
             await channel.send(embed=em)
 
             await interaction.followup.send(
-                f"✅ Message sent to {channel.mention}.", ephemeral=True
+                f"✅ Embed sent to {channel.mention}.", ephemeral=True
             )
         except Exception as e:
             await interaction.followup.send(
-                f"❌ Failed to send message: `{e}`", ephemeral=True
+                f"❌ Failed to send embed: `{e}`", ephemeral=True
             )
 
     # ========== PREFIX COMMAND ==========
@@ -72,11 +69,10 @@ class Post3(commands.Cog):
         if role is None:
             return await ctx.send("❌ You do not have permission to use this command.", delete_after=10)
 
-        # args format: message | image_url | embed_color
+        # args format: image_url | embed_color
         parts = args.split("|")
-        message = parts[0].strip().replace("\\n", "\n")
-        image_url = parts[1].strip() if len(parts) > 1 else None
-        embed_color = parts[2].strip() if len(parts) > 2 else "#2f3136"
+        image_url = parts[0].strip()
+        embed_color = parts[1].strip() if len(parts) > 1 else "#2f3136"
 
         try:
             try:
@@ -84,14 +80,13 @@ class Post3(commands.Cog):
             except ValueError:
                 color = discord.Color.dark_gray()
 
-            em = discord.Embed(description=message, color=color)
-            if image_url:
-                em.set_image(url=image_url)
+            em = discord.Embed(color=color)
+            em.set_image(url=image_url)
             await channel.send(embed=em)
 
-            await ctx.send(f"✅ Message sent to {channel.mention}.", delete_after=10)
+            await ctx.send(f"✅ Embed sent to {channel.mention}.", delete_after=10)
         except Exception as e:
-            await ctx.send(f"❌ Failed to send message: `{e}`", delete_after=10)
+            await ctx.send(f"❌ Failed to send embed: `{e}`", delete_after=10)
 
 
 async def setup(bot):
