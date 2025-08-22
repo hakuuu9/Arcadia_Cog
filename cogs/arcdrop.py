@@ -9,7 +9,7 @@ from config import MONGO_URL
 
 # Constants for the custom emoji, embed color, money range, and admin role ID
 MONEYDROP_EMOJI_ID = 1408390807836430417
-ARCADIA_COIN_EMOJI_ID = 1378656679704395796
+ARCADIA_COIN_EMOJI_ID = 1378662273836384256
 EMBED_COLOR = 0xE1D3C4  # Beige color
 MIN_MONEY = 200
 MAX_MONEY = 5000
@@ -122,7 +122,7 @@ class Arcdrop(commands.Cog):
         embed.set_thumbnail(url=user.display_avatar.url)
         return embed
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=10)
     async def drop_task(self):
         """A background task that drops Arcadia Tokens in a random configured channel."""
         await self.bot.wait_until_ready()
