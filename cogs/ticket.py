@@ -127,10 +127,10 @@ class TicketCog(commands.Cog):
         embed = discord.Embed(
             title="Need Support?",
             description="Click the button below to open a **private ticket** with our staff.\nThen choose the ticket type.",
-            color=discord.Color.blue()
+            color=discord.Color.from_str("#fff0db")
         )
         embed.set_thumbnail(url=guild.icon.url if guild.icon else discord.Embed.Empty)
-        embed.set_footer(text="Ticket System by ARCADIA")
+        embed.set_footer(text="Ticket System by Warcadia")
         await channel.send(embed=embed, view=OpenTicketView())
 
     @commands.Cog.listener()
