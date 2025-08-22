@@ -122,7 +122,7 @@ class Arcdrop(commands.Cog):
         embed.set_thumbnail(url=user.display_avatar.url)
         return embed
 
-    @tasks.loop(minutes=30)
+    @tasks.loop(minutes=5)
     async def drop_task(self):
         """A background task that drops Arcadia Tokens in a random configured channel."""
         await self.bot.wait_until_ready()
