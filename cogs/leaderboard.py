@@ -3,19 +3,24 @@ from discord.ext import commands
 from discord import app_commands
 from pymongo import MongoClient
 from config import MONGO_URL
+from datetime import datetime
 
 class Leaderboard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.client = MongoClient(MONGO_URL)
         self.db = self.client.hxhbot.users
-        self.embed_color = discord.Color.from_rgb(0, 0, 0)
+        self.embed_color = discord.Color.from_rgb(245, 245, 220)  # Beige
         self.title = "🏆 ARCADIA LEADERBOARD 🏆"
         self.quote = "_“Fortune favors the bold. Here are the richest among us.”_"
 
     async def fetch_top_users(self):
         # Fetch top 100 users to allow buffer for pagination
-        return list(self.db.find({"balance": {"$exists": True}}).sort("balance", -1).limit(100))
+        return list(
+            self.db.find({"balance": {"$exists": True}})
+            .sort("balance", -1)
+            .limit(100)
+        )
 
     def generate_embed(self, guild: discord.Guild, users, page: int, per_page=8):
         start = page * per_page
@@ -30,20 +35,23 @@ class Leaderboard(commands.Cog):
 
         if not selected_users:
             embed.description += "No users found on this page."
-            return embed
+        else:
+            for idx, user in enumerate(selected_users, start=start + 1):
+                try:
+                    user_id = int(user["_id"])
+                    member = guild.get_member(user_id)
+                    name = member.display_name if member else f"<@{user_id}>"
+                    balance = user.get("balance", 0)
+                    embed.description += f"**{idx}.** {name} — ₱{balance:,}\n\n"
+                except Exception as e:
+                    print(f"[Leaderboard] Skipped user #{idx} — Error: {e}")
+                    continue
 
-        for idx, user in enumerate(selected_users, start=start + 1):
-            try:
-                user_id = int(user["_id"])
-                member = guild.get_member(user_id)
-                name = member.display_name if member else f"<@{user_id}>"
-                balance = user.get("balance", 0)
-                embed.description += f"**{idx}.** {name} — ₱{balance:,}\n\n"
-            except Exception as e:
-                print(f"[Leaderboard] Skipped user #{idx} — Error: {e}")
-                continue
+        # Add footer with page number + date/time
+        now = datetime.now().strftime("%B %d, %Y • %I:%M %p")
+        total_pages = ((len(users) - 1) // per_page) + 1
+        embed.set_footer(text=f"Page {page + 1}/{total_pages} • Requested {now}")
 
-        embed.set_footer(text=f"Page {page + 1} / {((len(users) - 1) // per_page) + 1}")
         return embed
 
     async def show_leaderboard(self, target, guild, users, author_id):
@@ -64,8 +72,12 @@ class Leaderboard(commands.Cog):
 
         view = LeaderboardView()
 
-        prev_button = discord.ui.Button(label="◀ Prev", style=discord.ButtonStyle.gray, custom_id="prev")
-        next_button = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.gray, custom_id="next")
+        prev_button = discord.ui.Button(
+            label="◀ Prev", style=discord.ButtonStyle.gray, custom_id="prev"
+        )
+        next_button = discord.ui.Button(
+            label="Next ▶", style=discord.ButtonStyle.gray, custom_id="next"
+        )
 
         prev_button.disabled = True
         if len(users) <= 8:
@@ -73,14 +85,15 @@ class Leaderboard(commands.Cog):
 
         async def button_callback(interaction: discord.Interaction):
             if interaction.user.id != author_id:
-                return await interaction.response.send_message("This is not your interaction.", ephemeral=True)
+                return await interaction.response.send_message(
+                    "❌ This is not your leaderboard session.",
+                    ephemeral=True
+                )
 
-            if interaction.data["custom_id"] == "prev":
-                if view.page > 0:
-                    view.page -= 1
-            elif interaction.data["custom_id"] == "next":
-                if (view.page + 1) * 8 < len(users):
-                    view.page += 1
+            if interaction.data["custom_id"] == "prev" and view.page > 0:
+                view.page -= 1
+            elif interaction.data["custom_id"] == "next" and (view.page + 1) * 8 < len(users):
+                view.page += 1
 
             new_embed = self.generate_embed(guild, users, view.page)
             prev_button.disabled = (view.page == 0)
