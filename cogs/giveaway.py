@@ -36,41 +36,84 @@ class Giveaway(commands.Cog):
         """Clean up when the cog is unloaded."""
         self.check_giveaways.cancel()
         self.client.close()
+        
+    # ----------------------
+    # EVENT LISTENER: To check for role requirements on reaction
+    # ----------------------
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        # Ignore reactions from the bot itself
+        if payload.user_id == self.bot.user.id:
+            return
+
+        # We only care about the giveaway emoji
+        if str(payload.emoji) != "🎉":
+            return
+
+        # Check if the message is an active giveaway
+        giveaway = self.db.find_one({"_id": str(payload.message_id), "ended": False})
+        if not giveaway:
+            return
+
+        # Check if there's a required role. If not, we don't need to do anything.
+        required_role_id = giveaway.get("required_role")
+        if not required_role_id:
+            return
+
+        guild = self.bot.get_guild(payload.guild_id)
+        if not guild: return
+        
+        member = guild.get_member(payload.user_id)
+        if not member: return
+
+        required_role = guild.get_role(required_role_id)
+        if not required_role: return
+
+        # If the member does NOT have the required role
+        if required_role not in member.roles:
+            # 1. Remove their reaction
+            try:
+                channel = self.bot.get_channel(payload.channel_id) or await self.bot.fetch_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                await message.remove_reaction(payload.emoji, member)
+            except (discord.Forbidden, discord.NotFound):
+                # Bot might not have perms to remove reactions, or message was deleted
+                pass
+
+            # 2. Send them a DM explaining why
+            try:
+                dm_message = (
+                    f"Hi {member.display_name}, you tried to enter the giveaway for **{giveaway['prize']}** "
+                    f"in **{guild.name}**, but you are missing the required role: `{required_role.name}`."
+                )
+                await member.send(dm_message)
+            except discord.Forbidden:
+                # User has DMs closed.
+                pass
 
     async def _get_valid_entrants(self, giveaway_data: dict) -> list[discord.Member]:
         """Helper to fetch and filter giveaway entrants based on reaction and roles."""
         channel = self.bot.get_channel(giveaway_data["channel_id"])
-        if not channel:
-            return []
+        if not channel: return []
         try:
             message = await channel.fetch_message(giveaway_data["message_id"])
-        except discord.NotFound:
-            return []
+        except discord.NotFound: return []
 
         reaction = discord.utils.get(message.reactions, emoji="🎉")
-        if not reaction:
-            return []
+        if not reaction: return []
 
-        # Get a list of discord.User objects who reacted
         users = [user async for user in reaction.users()]
         
         entrants_with_weights = []
         for user in users:
-            if user.bot:
-                continue
-
-            # We need the Member object to check roles, user from reaction might not be
+            if user.bot: continue
             member = channel.guild.get_member(user.id)
-            if not member:
-                continue  # User might have left the server
+            if not member: continue
 
-            # Check for required role
             if giveaway_data.get("required_role"):
-                required_role_id = giveaway_data["required_role"]
-                if not any(r.id == required_role_id for r in member.roles):
+                if not any(r.id == giveaway_data["required_role"] for r in member.roles):
                     continue
             
-            # Calculate total entries for this member
             entry_count = 1
             for role_id in giveaway_data.get("extra_roles", []):
                 if any(r.id == role_id for r in member.roles):
@@ -83,74 +126,58 @@ class Giveaway(commands.Cog):
     async def _end_giveaway_logic(self, message_id: int, reroll: bool = False):
         """The core logic for ending or rerolling a giveaway."""
         giveaway = self.db.find_one({"_id": str(message_id)})
-        if not giveaway:
-            # Cannot end/reroll a giveaway that is not in the database
-            return "Giveaway not found in the database. It might have been deleted."
+        if not giveaway: return "Giveaway not found in the database."
 
         channel = self.bot.get_channel(giveaway["channel_id"])
-        if not channel:
-            return "Giveaway channel not found."
+        if not channel: return "Giveaway channel not found."
         try:
             message = await channel.fetch_message(giveaway["message_id"])
-        except discord.NotFound:
-            return "Giveaway message not found."
+        except discord.NotFound: return "Giveaway message not found."
 
         all_entrants = await self._get_valid_entrants(giveaway)
         
         if not all_entrants:
-            winner_text = "No one with valid entries entered! 😢"
             winners_list = []
         else:
             winners_count = giveaway["winners"]
-            
-            # Shuffle the weighted list of entrants
             random.shuffle(all_entrants)
-            
-            # Pick unique winners from the shuffled list
             winners_list = []
             winner_ids = set()
             for entrant in all_entrants:
                 if entrant.id not in winner_ids:
                     winners_list.append(entrant)
                     winner_ids.add(entrant.id)
-                if len(winners_list) == winners_count:
-                    break
+                if len(winners_list) == winners_count: break
         
-        # Prepare the winner announcement text
         if winners_list:
             winner_text = "\n".join([f"› {winner.mention}" for winner in winners_list])
-            if not reroll: # Only ping on the initial giveaway end
+            if not reroll:
                 await channel.send(f"Congratulations {', '.join([w.mention for w in winners_list])}! You won the **{giveaway['prize']}**!")
         else:
-            winner_text = "Could not determine a winner."
+            winner_text = "No one with valid entries entered! 😢" if not reroll else "Could not determine a new winner."
             
-        # Update the original giveaway embed
         embed = message.embeds[0]
-        embed.title = "🎉 **ARCADIA GIVEAWAY ENDED** 🎉" # <--- EDITED TITLE
+        embed.title = "🎉 **ARCADIA GIVEAWAY ENDED** 🎉"
+        end_timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         embed.description = (
             f"**`{giveaway['prize']}`**\n\n"
-            f"**Winner(s):**\n{winner_text}"
+            f"**Winner(s):**\n{winner_text}\n\n"
+            f"**Ended:** <t:{end_timestamp}:F>"
         )
-        embed.clear_fields() # Remove 'Requirements' and 'Extra Entries' fields
+        embed.clear_fields()
         embed.set_footer(text=f"Ended | Reroll with /giveaway_reroll message_id:{message_id}")
-        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
         await message.edit(embed=embed)
 
-        # Update the database record to mark as ended and store winners
         self.db.update_one(
             {"_id": str(message_id)},
             {"$set": {"ended": True, "winner_ids": [w.id for w in winners_list]}}
         )
         return f"Giveaway {message_id} has been successfully {'rerolled' if reroll else 'ended'}."
 
-    # ----------------------
-    # Background Task to check for giveaways to end
-    # ----------------------
     @tasks.loop(seconds=15)
     async def check_giveaways(self):
         """Periodically checks the database for giveaways that are due to end."""
         now = datetime.datetime.now(datetime.timezone.utc)
-        # Find giveaways past their end_time that haven't been marked as ended
         ended_giveaways = self.db.find({"end_time": {"$lte": now}, "ended": {"$ne": True}})
         
         for giveaway in ended_giveaways:
@@ -161,9 +188,6 @@ class Giveaway(commands.Cog):
     async def before_check_giveaways(self):
         await self.bot.wait_until_ready()
 
-    # ----------------------
-    # Start Giveaway Command
-    # ----------------------
     @app_commands.command(name="giveaway", description="Start a new giveaway")
     @app_commands.checks.has_role(GIVEAWAY_STAFF_ROLE_ID)
     async def giveaway(
@@ -186,10 +210,11 @@ class Giveaway(commands.Cog):
             await interaction.followup.send(f"❌ Error: {e}")
             return
 
-        end_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=seconds)
+        start_time = datetime.datetime.now(datetime.timezone.utc)
+        end_time = start_time + datetime.timedelta(seconds=seconds)
+        start_timestamp = int(start_time.timestamp())
         end_timestamp = int(end_time.timestamp())
 
-        # Parse extra roles from string to list of IDs
         extra_roles_ids = []
         if extra_entry_roles:
             role_ids_str = re.findall(r'\d+', extra_entry_roles)
@@ -198,12 +223,13 @@ class Giveaway(commands.Cog):
         embed_color = int(color.replace("#", ""), 16) if color else DEFAULT_EMBED_COLOR
         
         embed = discord.Embed(
-            title=" **ARCADIA GIVEAWAY** ", # <--- EDITED TITLE
+            title="🎉 **ARCADIA GIVEAWAY** 🎉",
             description=(
                 f"**`{prize}`**\n\n"
                 f"React with 🎉 to enter!\n"
-                f"Ends: <t:{end_timestamp}:R> (<t:{end_timestamp}:F>)\n"
-                f"Winners: **{winners}**"
+                f"Winners: **{winners}**\n\n"
+                f"**Started:** <t:{start_timestamp}:F>\n"
+                f"**Ends:** <t:{end_timestamp}:F> (<t:{end_timestamp}:R>)"
             ),
             color=embed_color
         )
@@ -213,12 +239,9 @@ class Giveaway(commands.Cog):
             mentions = [f"<@&{role_id}>" for role_id in extra_roles_ids]
             embed.add_field(name="Extra Entries", value=", ".join(mentions), inline=False)
 
-        if thumbnail:
-            embed.set_thumbnail(url=thumbnail.url)
-        if image:
-            embed.set_image(url=image.url)
+        if thumbnail: embed.set_thumbnail(url=thumbnail.url)
+        if image: embed.set_image(url=image.url)
         embed.set_footer(text=DEFAULT_FOOTER)
-        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
 
         try:
             msg = await channel.send(embed=embed)
@@ -228,22 +251,14 @@ class Giveaway(commands.Cog):
             return
 
         giveaway_data = {
-            "_id": str(msg.id),
-            "prize": prize,
-            "channel_id": channel.id,
-            "message_id": msg.id,
-            "end_time": end_time,
-            "winners": winners,
+            "_id": str(msg.id), "prize": prize, "channel_id": channel.id,
+            "message_id": msg.id, "end_time": end_time, "winners": winners,
             "required_role": required_role.id if required_role else None,
-            "extra_roles": extra_roles_ids,
-            "ended": False
+            "extra_roles": extra_roles_ids, "ended": False
         }
         self.db.insert_one(giveaway_data)
         await interaction.followup.send(f"✅ Giveaway started in {channel.mention}! View it here: {msg.jump_url}")
 
-    # ----------------------
-    # End Giveaway Command
-    # ----------------------
     @app_commands.command(name="giveaway_end", description="End a giveaway manually before its scheduled time")
     @app_commands.checks.has_role(GIVEAWAY_STAFF_ROLE_ID)
     async def giveaway_end(self, interaction: discord.Interaction, message_id: str):
@@ -251,9 +266,6 @@ class Giveaway(commands.Cog):
         response = await self._end_giveaway_logic(int(message_id))
         await interaction.followup.send(f"✅ {response}")
 
-    # ----------------------
-    # Reroll Giveaway Command
-    # ----------------------
     @app_commands.command(name="giveaway_reroll", description="Reroll a winner for an ended giveaway")
     @app_commands.checks.has_role(GIVEAWAY_STAFF_ROLE_ID)
     async def giveaway_reroll(self, interaction: discord.Interaction, message_id: str):
