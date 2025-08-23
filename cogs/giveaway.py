@@ -126,7 +126,7 @@ class Giveaway(commands.Cog):
             
         # Update the original giveaway embed
         embed = message.embeds[0]
-        embed.title = "🎉 **GIVEAWAY ENDED** 🎉"
+        embed.title = "🎉 **ARCADIA GIVEAWAY ENDED** 🎉" # <--- EDITED TITLE
         embed.description = (
             f"**`{giveaway['prize']}`**\n\n"
             f"**Winner(s):**\n{winner_text}"
@@ -198,7 +198,7 @@ class Giveaway(commands.Cog):
         embed_color = int(color.replace("#", ""), 16) if color else DEFAULT_EMBED_COLOR
         
         embed = discord.Embed(
-            title="🎉 **GIVEAWAY** 🎉",
+            title=" **ARCADIA GIVEAWAY** ", # <--- EDITED TITLE
             description=(
                 f"**`{prize}`**\n\n"
                 f"React with 🎉 to enter!\n"
