@@ -1,152 +1,149 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
-import random
 import asyncio
-from pymongo import MongoClient
-from config import MONGO_URL
+import random
+import datetime
 
-LOTTERY_TICKET_COST = 10000  # cost per ticket
+# Role ID for lottery staff
+LOTTERY_STAFF_ID = 1347181345922748456  
+
+def is_lottery_staff(interaction: discord.Interaction) -> bool:
+    return any(role.id == LOTTERY_STAFF_ID for role in interaction.user.roles)
 
 class Lottery(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.client = MongoClient(MONGO_URL)
-        self.db = self.client.hxhbot.users
-        self.lotteries = {}  # active lotteries {message_id: {...}}
+        self.lotteries = {}  # store active lotteries {message_id: {...}}
 
+    # ========== START LOTTERY ==========
+    @app_commands.check(is_lottery_staff)
     @app_commands.command(name="lottery", description="Start a lottery event.")
-    @app_commands.describe(
-        channel="The channel where the lottery will be hosted.",
-        duration="Duration in seconds (e.g., 3600 for 1h).",
-        winners="Number of winners.",
-        prize="Prize description.",
-        embed_color="Embed color in hex (#RRGGBB). Optional.",
-        thumbnail="Thumbnail image (upload). Optional.",
-        image="Main image (upload). Optional."
-    )
     async def lottery(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel,
-        duration: int,
+        self, interaction: discord.Interaction,
+        duration: str,
         winners: int,
         prize: str,
-        embed_color: str = "#2ecc71",
+        channel: discord.TextChannel,
+        embed_color: str = "#ff0000",
         thumbnail: discord.Attachment = None,
-        image: discord.Attachment = None,
+        image: discord.Attachment = None
     ):
-        """Start a lottery that requires a Lottery Ticket to join."""
-        await interaction.response.defer()
+        """Start a lottery in a specific channel"""
+        await interaction.response.defer(ephemeral=True)
 
+        # Convert duration (e.g., "10m", "2h", "1d") into seconds
+        time_multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+        unit = duration[-1]
+        if unit not in time_multipliers:
+            return await interaction.followup.send("❌ Invalid duration format! Use s/m/h/d.", ephemeral=True)
+        try:
+            duration_seconds = int(duration[:-1]) * time_multipliers[unit]
+        except ValueError:
+            return await interaction.followup.send("❌ Invalid number for duration!", ephemeral=True)
+
+        end_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=duration_seconds)
+
+        # Embed color
         try:
             color = discord.Color.from_str(embed_color)
         except Exception:
-            color = discord.Color.green()
+            color = discord.Color.red()
 
+        # Create embed
         embed = discord.Embed(
             title="🎟️ Arcadia Lottery",
-            description=(
-                f"🎁 **Prize:** {prize}\n"
-                f"🏆 **Winners:** {winners}\n"
-                f"⏳ **Duration:** {duration} seconds\n\n"
-                f"To join, you must buy **1 Lottery Ticket** from the shop!\n"
-                f"Use `/buy lottery-ticket 1`."
-            ),
+            description=f"Prize: **{prize}**\nWinners: **{winners}**\nEnds: <t:{int(end_time.timestamp())}:R>",
             color=color
         )
-        embed.set_footer(text="Arcadia Blackmarket Lottery")
-
         if thumbnail:
             embed.set_thumbnail(url=thumbnail.url)
         if image:
             embed.set_image(url=image.url)
 
-        lottery_msg = await channel.send(embed=embed, view=self.JoinView(self, prize, winners))
+        embed.set_footer(text="Click 🎟️ to enter!")
 
+        # Send lottery message
+        lottery_msg = await channel.send(embed=embed)
+        await lottery_msg.add_reaction("🎟️")
+
+        # Store lottery info
         self.lotteries[lottery_msg.id] = {
-            "message": lottery_msg,
             "prize": prize,
             "winners": winners,
-            "entrants": set(),
-            "ended": False,
+            "end_time": end_time,
+            "channel": channel.id,
+            "host": interaction.user.id
         }
 
-        await asyncio.sleep(duration)
-        if lottery_msg.id in self.lotteries and not self.lotteries[lottery_msg.id]["ended"]:
-            await self.end_lottery(interaction, lottery_msg.id)
+        await interaction.followup.send(f"✅ Lottery started in {channel.mention} (ID: `{lottery_msg.id}`).", ephemeral=True)
 
-    class JoinView(discord.ui.View):
-        def __init__(self, cog, prize, winners):
-            super().__init__(timeout=None)
-            self.cog = cog
-            self.prize = prize
-            self.winners = winners
+        # Automatically end after time runs out
+        self.bot.loop.create_task(self.end_lottery_after(lottery_msg.id, duration_seconds))
 
-        @discord.ui.button(label="🎟️ Join Lottery", style=discord.ButtonStyle.green)
-        async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
-            user_id = str(interaction.user.id)
-            user_data = self.cog.db.find_one({"_id": user_id}) or {}
+    # ========== END LOTTERY ==========
+    @app_commands.check(is_lottery_staff)
+    @app_commands.command(name="lottery_end", description="End a running lottery early.")
+    async def lottery_end(self, interaction: discord.Interaction, lottery_id: str):
+        """End a lottery early using message ID"""
+        if not lottery_id.isdigit():
+            return await interaction.response.send_message("❌ Invalid lottery ID!", ephemeral=True)
 
-            if user_data.get("lottery_tickets", 0) <= 0:
-                return await interaction.response.send_message(
-                    "❌ You need a **Lottery Ticket** to join! Buy one with `/buy lottery-ticket 1`.",
-                    ephemeral=True
-                )
+        lottery_id = int(lottery_id)
+        if lottery_id not in self.lotteries:
+            return await interaction.response.send_message("❌ No active lottery with that ID!", ephemeral=True)
 
-            if interaction.message.id not in self.cog.lotteries:
-                return await interaction.response.send_message("❌ This lottery is no longer active.", ephemeral=True)
+        await self.finish_lottery(lottery_id)
+        await interaction.response.send_message(f"✅ Lottery `{lottery_id}` has been ended.", ephemeral=True)
 
-            lottery = self.cog.lotteries[interaction.message.id]
-            if user_id in lottery["entrants"]:
-                return await interaction.response.send_message("❌ You already joined this lottery!", ephemeral=True)
+    # ========== TASK: END LOTTERY ==========
+    async def end_lottery_after(self, lottery_id: int, delay: int):
+        await asyncio.sleep(delay)
+        if lottery_id in self.lotteries:
+            await self.finish_lottery(lottery_id)
 
-            self.cog.db.update_one({"_id": user_id}, {"$inc": {"lottery_tickets": -1}}, upsert=True)
-            lottery["entrants"].add(user_id)
-
-            await interaction.response.send_message("✅ You successfully joined the lottery!", ephemeral=True)
-
-    @app_commands.command(name="lottery_end", description="Force end a lottery early.")
-    @app_commands.describe(message_id="The ID of the lottery message.")
-    async def lottery_end(self, interaction: discord.Interaction, message_id: str):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            message_id = int(message_id)
-        except ValueError:
-            return await interaction.followup.send("❌ Invalid message ID.", ephemeral=True)
-
-        if message_id not in self.lotteries:
-            return await interaction.followup.send("❌ Lottery not found or already ended.", ephemeral=True)
-
-        await self.end_lottery(interaction, message_id)
-        await interaction.followup.send("✅ Lottery has been ended.", ephemeral=True)
-
-    async def end_lottery(self, interaction: discord.Interaction, message_id: int):
-        lottery = self.lotteries.get(message_id)
-        if not lottery or lottery["ended"]:
+    async def finish_lottery(self, lottery_id: int):
+        lottery = self.lotteries.pop(lottery_id, None)
+        if not lottery:
             return
 
-        entrants = list(lottery["entrants"])
-        winners = []
-        if entrants:
-            winners = random.sample(entrants, min(len(entrants), lottery["winners"]))
-        else:
-            winners = []
+        channel = self.bot.get_channel(lottery["channel"])
+        if not channel:
+            return
 
-        result_embed = discord.Embed(
-            title="🎟️ Lottery Ended",
-            description=(
-                f"🎁 **Prize:** {lottery['prize']}\n"
-                f"🏆 **Winners:** {', '.join(f'<@{w}>' for w in winners) if winners else 'No entrants'}"
-            ),
-            color=discord.Color.red()
-        )
-        await lottery["message"].edit(embed=result_embed, view=None)
-        lottery["ended"] = True
+        try:
+            message = await channel.fetch_message(lottery_id)
+        except discord.NotFound:
+            return
 
-    def cog_unload(self):
-        self.client.close()
-        print("Lottery MongoDB client closed.")
+        # Get participants
+        reaction = discord.utils.get(message.reactions, emoji="🎟️")
+        if not reaction:
+            return await channel.send("❌ No participants for this lottery.")
+
+        users = [u async for u in reaction.users() if not u.bot]
+        if not users:
+            return await channel.send("❌ No valid participants for this lottery.")
+
+        # Pick winners
+        winners_count = min(lottery["winners"], len(users))
+        winners = random.sample(users, winners_count)
+
+        winner_mentions = ", ".join(w.mention for w in winners)
+        await channel.send(f"🎉 Congratulations {winner_mentions}! You won **{lottery['prize']}** 🎁")
+
+        # Edit original embed to mark ended
+        embed = message.embeds[0]
+        embed.color = discord.Color.dark_gray()
+        embed.description += f"\n\n**Ended!** Winners: {winner_mentions}"
+        await message.edit(embed=embed)
+
+    # Error handler for missing role
+    @lottery.error
+    @lottery_end.error
+    async def on_lottery_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, app_commands.CheckFailure):
+            await interaction.response.send_message("❌ Only Lottery Staff can use this command.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Lottery(bot))
