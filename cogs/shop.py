@@ -14,10 +14,6 @@ ANTI_ROB_COST = 1000
 CUSTOM_ROLE_EMOJI = "<:role:1378669470737891419>"
 CUSTOM_ROLE_COST = 150000
 
-LOTTERY_TICKET_EMOJI = "🎟"
-LOTTERY_TICKET_COST = 10000
-LOTTERY_TICKET_NAME = "Lottery Ticket"
-
 # Role shop items
 ROLE_COST = 20000
 ROLE_ITEMS = {
@@ -55,8 +51,6 @@ class Shop(commands.Cog):
                 f"  *(Use `/buy anti-rob <amount>`)*\n\n"
                 f"• {CUSTOM_ROLE_EMOJI} **Custom Role** - ₱{CUSTOM_ROLE_COST}\n"
                 f"  *(Use `/buy custom-role <amount>`)*\n\n"
-                f"• {LOTTERY_TICKET_EMOJI} **{LOTTERY_TICKET_NAME}** - ₱{LOTTERY_TICKET_COST}\n"
-                f"  *(Use `/buy lottery-ticket <amount>` to enter lotteries)*\n\n"
                 f"**Special Roles:**\n{role_items_text}"
             ),
             color=discord.Color.dark_red()
@@ -138,27 +132,6 @@ class Shop(commands.Cog):
                     f"🎨 {interaction.user.mention} bought {amount} **Custom Role(s)**.\nPlease help them set it up."
                 )
             return
-
-        # Lottery Ticket purchase
-        elif item == "lottery ticket":
-            total_cost = LOTTERY_TICKET_COST * amount
-            if current_balance < total_cost:
-                return await interaction.followup.send(
-                    f"❌ You need ₱{total_cost:,} but only have ₱{current_balance:,}.",
-                    ephemeral=True
-                )
-
-            # Store in inventory
-            self.db.update_one(
-                {"_id": user_id},
-                {"$inc": {"balance": -total_cost, f"inventory.{LOTTERY_TICKET_NAME}": amount}},
-                upsert=True
-            )
-
-            return await interaction.followup.send(
-                f"✅ You bought {amount} {LOTTERY_TICKET_EMOJI} **{LOTTERY_TICKET_NAME}(s)** for ₱{total_cost:,}!\n"
-                f"New balance: ₱{current_balance - total_cost:,}."
-            )
 
         # Role shop purchase
         elif item in ROLE_ITEMS:
