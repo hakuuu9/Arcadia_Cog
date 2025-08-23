@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord import app_commands
 import asyncio
 import random
@@ -25,6 +25,7 @@ class Lottery(commands.Cog):
         winners: int,
         prize: str,
         channel: discord.TextChannel,
+        required_role: discord.Role = None,  # NEW: optional role requirement
         embed_color: str = "#ff0000",
         thumbnail: discord.Attachment = None,
         image: discord.Attachment = None
@@ -50,18 +51,28 @@ class Lottery(commands.Cog):
         except Exception:
             color = discord.Color.red()
 
+        # Role requirement text
+        role_text = required_role.mention if required_role else "None"
+
         # Create embed
         embed = discord.Embed(
-            title="🎟️ Arcadia Lottery",
-            description=f"Prize: **{prize}**\nWinners: **{winners}**\nEnds: <t:{int(end_time.timestamp())}:R>",
+            title="**ARCADIA GIVEAWAY**",
+            description=(
+                f"React with 🎟️ to enter!\n"
+                f"Total Entries: `0`\n\n"
+                f"Winners: `{winners}`\n"
+                f"Ends: <t:{int(end_time.timestamp())}:R>\n"
+                f"Requirements: {role_text}"
+            ),
             color=color
         )
+
         if thumbnail:
             embed.set_thumbnail(url=thumbnail.url)
         if image:
             embed.set_image(url=image.url)
 
-        embed.set_footer(text="Click 🎟️ to enter!")
+        embed.set_footer(text=f"Prize: {prize}")
 
         # Send lottery message
         lottery_msg = await channel.send(embed=embed)
@@ -73,7 +84,8 @@ class Lottery(commands.Cog):
             "winners": winners,
             "end_time": end_time,
             "channel": channel.id,
-            "host": interaction.user.id
+            "host": interaction.user.id,
+            "required_role": required_role.id if required_role else None
         }
 
         await interaction.followup.send(f"✅ Lottery started in {channel.mention} (ID: `{lottery_msg.id}`).", ephemeral=True)
@@ -122,6 +134,12 @@ class Lottery(commands.Cog):
             return await channel.send("❌ No participants for this lottery.")
 
         users = [u async for u in reaction.users() if not u.bot]
+
+        # Filter by required role
+        if lottery["required_role"]:
+            role_id = lottery["required_role"]
+            users = [u for u in users if any(r.id == role_id for r in u.roles)]
+
         if not users:
             return await channel.send("❌ No valid participants for this lottery.")
 
