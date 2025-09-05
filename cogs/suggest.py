@@ -32,7 +32,7 @@ class SuggestionModal(ui.Modal, title="Submit a Recommendation"):
     suggestion_text = ui.TextInput(
         label="What is your suggestion?",
         style=discord.TextStyle.paragraph,
-        placeholder="e.g., We should add an UNO bot to the server for events.",
+        placeholder="e.g., We should implement a weekly Gcash giveaway.",
         required=True,
         max_length=1500,
     )
