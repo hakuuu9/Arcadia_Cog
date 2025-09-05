@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands, ui
-import datetime # Added for date formatting
+import datetime 
 
 # --- CONFIGURATION ---
 # Replace with the channel ID where suggestions should be posted.
@@ -11,6 +11,9 @@ SUGGESTION_SETUP_CHANNEL_ID = 1365065762104020992
 
 UPVOTE_EMOJI = '✅'
 DOWNVOTE_EMOJI = '❌'
+
+# <<< MODIFICATION: Thumbnail URL added >>>
+SUGGESTION_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1365065762104020992/1413479257459654677/IMG_2007.gif?ex=68bc14a4&is=68bac324&hm=2fc0c9732a46a69ec7adbf031c8267e2913e8f44ff1ed149ee1ed01a44eb021e"
 
 # This is the pop-up form (Modal) that appears when the button is clicked.
 class SuggestionModal(ui.Modal, title="Submit a Recommendation"):
@@ -43,18 +46,21 @@ class SuggestionModal(ui.Modal, title="Submit a Recommendation"):
         suggestion_embed = discord.Embed(
             title="New Suggestion",
             description=self.suggestion_text.value,
-            color=0xF5F5DC  # <<< MODIFICATION 1: Changed color to beige
+            color=0xF5F5DC
         )
         suggestion_embed.set_author(
             name=f"{interaction.user.display_name}", 
             icon_url=interaction.user.display_avatar.url
         )
+        
+        # <<< MODIFICATION: Set the thumbnail >>>
+        suggestion_embed.set_thumbnail(url=SUGGESTION_THUMBNAIL_URL)
 
-        # <<< MODIFICATION 2: Changed footer text >>>
         # Get the date from the interaction's creation time for accuracy
         formatted_date = interaction.created_at.strftime('%m/%d/%Y')
+        
         suggestion_embed.set_footer(
-            text=f"Suggested by: {interaction.user.display_name} • {formatted_date}"
+            text=f"Submitted on: {formatted_date}"
         )
 
         # Send the suggestion embed to the suggestions channel
