@@ -13,7 +13,7 @@ UPVOTE_EMOJI = '✅'
 DOWNVOTE_EMOJI = '❌'
 
 # <<< MODIFICATION: Thumbnail URL added >>>
-SUGGESTION_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1365065762104020992/1413479257459654677/IMG_2007.gif?ex=68bc14a4&is=68bac324&hm=2fc0c9732a46a69ec7adbf031c8267e2913e8f44ff1ed149ee1ed01a44eb021e"
+SUGGESTION_THUMBNAIL_URL = "https://cdn.discordapp.com/attachments/1365065762104020992/1413481070149763183/IMG_2007.gif?ex=68bc1654&is=68bac4d4&hm=3629180fcf5384bbc607d5a84df5a6268c9a81ee91afb9b26f698e078d6d1a30"
 
 # This is the pop-up form (Modal) that appears when the button is clicked.
 class SuggestionModal(ui.Modal, title="Submit a Recommendation"):
