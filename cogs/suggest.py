@@ -7,7 +7,7 @@ from config import MONGO_URL # Assumes MONGO_URL is in a config.py file
 
 # --- CONFIGURATION ---
 # IMPORTANT: Both IDs should be the SAME for a single-channel system.
-SUGGESTIONS_CHANNEL_ID = 1365065762104020992 
+SUGGESTIONS_CHANNEL_ID = 1414243374789296240 
 
 UPVOTE_EMOJI = '✅'
 DOWNVOTE_EMOJI = '❌'
